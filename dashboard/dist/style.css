@@ -1,0 +1,422 @@
+/*
+ * youtube-insights — dashboard plugin styles.
+ *
+ * All structural colors reference the host theme's CSS variables so the
+ * pages reskin with the active dashboard theme (light and dark). Fixed hex
+ * is reserved for semantic accents that must not shift with the theme:
+ * trend green/red, and the insight category chip palette.
+ */
+
+.yti-root {
+  width: 100%;
+}
+
+.yti-page {
+  padding: 24px;
+  max-width: 1200px;
+  color: var(--color-foreground);
+}
+
+.yti-page-narrow {
+  max-width: 1000px;
+}
+
+/* ---- header ---------------------------------------------------------- */
+
+.yti-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.yti-title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.yti-title-block {
+  margin-bottom: 20px;
+}
+
+.yti-header-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.yti-subtle {
+  font-size: 13px;
+  color: var(--color-muted-foreground);
+  margin-bottom: 20px;
+}
+
+.yti-notice {
+  border: 1px solid var(--color-border);
+  border-radius: calc(var(--radius, 8px) - 2px);
+  padding: 8px 12px;
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+
+.yti-notice-ok {
+  border-color: #22c55e66;
+}
+
+.yti-notice-error {
+  border-color: #ef444466;
+  color: #ef4444;
+}
+
+/* ---- sub-tabs -------------------------------------------------------- */
+
+.yti-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 16px 24px 0 24px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.yti-tab {
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--color-muted-foreground);
+  font-size: 14px;
+  font-weight: 600;
+  padding: 8px 14px;
+  cursor: pointer;
+}
+
+.yti-tab:hover {
+  color: var(--color-foreground);
+}
+
+.yti-tab-active {
+  color: var(--color-foreground);
+  border-bottom-color: var(--color-ring);
+}
+
+/* ---- cards / stats --------------------------------------------------- */
+
+.yti-card {
+  background: var(--color-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius, 8px);
+  padding: 16px;
+}
+
+.yti-stats-row {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.yti-stat-card {
+  background: var(--color-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius, 8px);
+  padding: 16px;
+  text-align: center;
+  min-width: 140px;
+}
+
+.yti-stat-value {
+  font-size: 28px;
+  font-weight: 700;
+}
+
+.yti-stat-label {
+  font-size: 12px;
+  color: var(--color-muted-foreground);
+}
+
+.yti-stat-top {
+  max-width: 300px;
+  text-align: center;
+}
+
+.yti-stat-top-text {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* ---- channels card --------------------------------------------------- */
+
+.yti-channels-card {
+  margin-bottom: 20px;
+}
+
+.yti-channels-toggle {
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.yti-channels-body {
+  margin-top: 12px;
+}
+
+.yti-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.yti-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #fff;
+  border-radius: 12px;
+  padding: 2px 10px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.yti-chip-channel {
+  background: color-mix(in srgb, var(--color-foreground) 18%, transparent);
+  color: var(--color-foreground);
+}
+
+.yti-chip-remove {
+  cursor: pointer;
+  margin-left: 4px;
+  color: #ef4444;
+  font-weight: 700;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.yti-add-channel {
+  display: flex;
+  gap: 8px;
+  max-width: 360px;
+}
+
+/* ---- trends table ---------------------------------------------------- */
+
+.yti-table-wrap {
+  overflow-x: auto;
+}
+
+.yti-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.yti-table th {
+  padding: 8px;
+  text-align: left;
+  border-bottom: 1px solid var(--color-border);
+  white-space: nowrap;
+  color: var(--color-muted-foreground);
+  font-weight: 600;
+}
+
+.yti-table th.yti-right,
+.yti-table td.yti-right {
+  text-align: right;
+}
+
+.yti-table th.yti-center,
+.yti-table td.yti-center {
+  text-align: center;
+}
+
+.yti-table th.yti-sortable {
+  cursor: pointer;
+  user-select: none;
+}
+
+.yti-table th.yti-strong,
+.yti-table td.yti-strong {
+  font-weight: 700;
+  color: var(--color-foreground);
+}
+
+.yti-table td {
+  padding: 8px;
+  border-bottom: 1px solid color-mix(in srgb, var(--color-border) 55%, transparent);
+  vertical-align: middle;
+}
+
+.yti-thumb {
+  width: 80px;
+  height: 45px;
+  border-radius: 4px;
+  object-fit: cover;
+  display: block;
+}
+
+.yti-thumb-empty {
+  background: color-mix(in srgb, var(--color-foreground) 10%, transparent);
+}
+
+.yti-video-link {
+  color: #2dd4bf;
+  text-decoration: none;
+}
+
+.yti-video-link:hover {
+  text-decoration: underline;
+}
+
+.yti-muted {
+  color: var(--color-muted-foreground);
+}
+
+.yti-faint {
+  color: color-mix(in srgb, var(--color-muted-foreground) 70%, transparent);
+}
+
+.yti-small {
+  font-size: 12px;
+}
+
+.yti-pts {
+  font-size: 11px;
+  color: var(--color-muted-foreground);
+  margin-top: 2px;
+}
+
+.yti-trend-arrow {
+  font-size: 14px;
+  font-weight: 700;
+  margin-right: 4px;
+  vertical-align: middle;
+}
+
+.yti-sparkline {
+  vertical-align: middle;
+}
+
+.yti-status {
+  font-size: 11px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  padding: 1px 8px;
+  color: var(--color-muted-foreground);
+  white-space: nowrap;
+}
+
+.yti-status-transcribed { border-color: #3b82f680; color: #3b82f6; }
+.yti-status-analyzing   { border-color: #f59e0b80; color: #f59e0b; }
+.yti-status-analyzed    { border-color: #22c55e80; color: #22c55e; }
+
+.yti-empty {
+  color: var(--color-muted-foreground);
+  padding: 40px;
+  text-align: center;
+}
+
+/* ---- insights page --------------------------------------------------- */
+
+.yti-filter-row {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.yti-search {
+  flex: 1;
+  min-width: 200px;
+}
+
+.yti-select {
+  background: var(--color-card);
+  color: var(--color-foreground);
+  border: 1px solid var(--color-border);
+  border-radius: calc(var(--radius, 8px) - 2px);
+  padding: 6px 10px;
+  font-size: 13px;
+}
+
+.yti-insight-card {
+  margin-bottom: 12px;
+}
+
+.yti-insight-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.yti-insight-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.yti-insight-text {
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  margin-bottom: 4px;
+}
+
+.yti-insight-preview {
+  font-size: 12px;
+  color: var(--color-muted-foreground);
+  margin-bottom: 6px;
+}
+
+.yti-insight-meta {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.yti-delete-btn {
+  color: #ef4444;
+}
+
+.yti-insight-expanded {
+  margin-top: 12px;
+  border-top: 1px solid var(--color-border);
+  padding-top: 12px;
+}
+
+.yti-insight-detail {
+  font-size: 13px;
+  margin-bottom: 12px;
+}
+
+.yti-source {
+  margin-bottom: 10px;
+  padding-left: 12px;
+  border-left: 2px solid var(--color-border);
+}
+
+.yti-source-link {
+  color: #93c5fd;
+  text-decoration: none;
+}
+
+.yti-source-link:hover {
+  text-decoration: underline;
+}
+
+.yti-ts {
+  margin-left: 8px;
+}
+
+.yti-source-quote {
+  font-size: 12px;
+  color: var(--color-muted-foreground);
+  font-style: italic;
+  margin-top: 4px;
+}
+
+.yti-pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+  margin-top: 20px;
+}

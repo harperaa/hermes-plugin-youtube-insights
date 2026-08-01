@@ -1,0 +1,14 @@
+{
+  "name": "youtube-insights",
+  "label": "YouTube Insights",
+  "description": "Competitor YouTube intelligence — VPH trends, transcripts, and a deduplicated insight knowledge base",
+  "icon": "Video",
+  "version": "1.0.0",
+  "tab": {
+    "path": "/youtube",
+    "position": "after:skills"
+  },
+  "entry": "dist/index.js",
+  "css": "dist/style.css",
+  "api": "plugin_api.py"
+}

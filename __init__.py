@@ -1,0 +1,123 @@
+"""youtube-insights — hermes plugin entry point.
+
+YouTube competitive intelligence: channel tracking, transcript fetch,
+VPH/trend analytics, and a deduplicated insight knowledge base. Content
+production is intentionally out of scope (pair with a marketing plugin such
+as digital-marketing-pro for that).
+"""
+from __future__ import annotations
+
+import json
+import logging
+from pathlib import Path
+
+try:
+    from . import schemas, tools, cli, yti_insights
+except ImportError:  # imported outside package context (tests, tooling)
+    import schemas, tools, cli, yti_insights  # type: ignore
+
+logger = logging.getLogger(__name__)
+
+_TOOLS = (
+    ("yt_add_channel", schemas.YT_ADD_CHANNEL, tools.yt_add_channel, None),
+    ("yt_remove_channel", schemas.YT_REMOVE_CHANNEL, tools.yt_remove_channel, None),
+    ("yt_list_channels", schemas.YT_LIST_CHANNELS, tools.yt_list_channels, None),
+    ("yt_fetch_videos", schemas.YT_FETCH_VIDEOS, tools.yt_fetch_videos,
+     ["TRANSCRIPT_API_KEY"]),
+    ("yt_trending", schemas.YT_TRENDING, tools.yt_trending, None),
+    ("yt_trigger_analysis", schemas.YT_TRIGGER_ANALYSIS,
+     tools.yt_trigger_analysis, None),
+    ("yt_add_insight", schemas.YT_ADD_INSIGHT, tools.yt_add_insight, None),
+    ("yt_search_insights", schemas.YT_SEARCH_INSIGHTS,
+     tools.yt_search_insights, None),
+)
+
+
+def _cmd_yt(raw_args: str) -> str:
+    """/yt — trends + insight-base summary."""
+    from . import yti_store, yti_fetcher
+
+    conn = yti_store.connect()
+    channels = yti_store.list_channels(conn)
+    videos = yti_fetcher.trends_from_db(conn)[:10]
+    stats = yti_insights.insight_stats(conn)
+    conn.close()
+
+    lines = [f"**YouTube Insights** — {len(channels)} channels tracked, "
+             f"{stats['totalInsights']} insights from {stats['totalSources']} videos."]
+    if videos:
+        lines.append("")
+        lines.append("Top videos by VPH:")
+        for v in videos:
+            lines.append(f"- {v['vph']:>6} vph · {v['title'][:70]} "
+                         f"({v['author']}, {v['trendDirection']})")
+    else:
+        lines.append("No videos tracked yet — add channels with yt_add_channel "
+                     "and run yt_fetch_videos.")
+    return "\n".join(lines)
+
+
+def _cmd_yt_analyze(raw_args: str) -> str:
+    """/yt-analyze — queue analysis work items now."""
+    result = json.loads(tools.yt_trigger_analysis({}))
+    if result.get("error"):
+        return f"trigger-analysis failed: {result['error']}"
+    n = result.get("triggered", 0)
+    if not n:
+        return ("No videos are waiting for analysis. Run yt_fetch_videos "
+                "first (or every video is already analyzed).")
+    titles = "\n".join(f"- {i['title']}" for i in result.get("items", []))
+    return (f"Queued {n} video(s) for analysis:\n{titles}\n\n"
+            "Work each item by following its 'instructions' field from "
+            "yt_trigger_analysis (analyst skill → analysis.md → yt_add_insight).")
+
+
+def register(ctx) -> None:
+    # Tools
+    for name, schema, handler, req_env in _TOOLS:
+        ctx.register_tool(
+            name=name,
+            toolset="youtube_insights",
+            schema=schema,
+            handler=handler,
+            requires_env=req_env,
+        )
+
+    # Borderline-dedup judge on the host LLM (best-effort; never required)
+    try:
+        llm = ctx.llm
+
+        def _complete_text(prompt: str) -> str:
+            result = llm.complete([{"role": "user", "content": prompt}],
+                                  max_tokens=50, purpose="insight-dedup")
+            return getattr(result, "text", "") or ""
+
+        tools.set_llm_judge(yti_insights.make_llm_judge(_complete_text))
+    except Exception:  # pragma: no cover - judge is optional
+        tools.set_llm_judge(None)
+
+    # Slash commands
+    ctx.register_command("yt", handler=_cmd_yt,
+                         description="YouTube trends + insight summary")
+    ctx.register_command("yt-analyze", handler=_cmd_yt_analyze,
+                         description="Queue transcribed videos for insight extraction")
+
+    # CLI subcommand: hermes youtube-insights {setup-cron,status,reindex}
+    ctx.register_cli_command(
+        "youtube-insights",
+        help="YouTube intelligence utilities (setup-cron, status, reindex)",
+        setup_fn=cli.setup,
+        handler_fn=cli.handle,
+    )
+
+    # Bundled skills → youtube-insights:<name>
+    skills_dir = Path(__file__).parent / "skills"
+    if skills_dir.is_dir():
+        for child in sorted(skills_dir.iterdir()):
+            skill_md = child / "SKILL.md"
+            if child.is_dir() and skill_md.exists():
+                try:
+                    ctx.register_skill(child.name, skill_md)
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning("skill %s failed to register: %s",
+                                   child.name, exc)

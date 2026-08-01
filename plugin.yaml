@@ -1,0 +1,26 @@
+name: youtube-insights
+version: 1.0.0
+description: >
+  YouTube competitive intelligence — track competitor channels, pull
+  transcripts, rank videos by views-per-hour (VPH), and mine transcripts
+  into a deduplicated, searchable insight knowledge base. Dashboard tab
+  with Trends and Insights pages.
+author: Allen Harper
+kind: standalone
+manifest_version: 1
+
+requires_env:
+  - name: TRANSCRIPT_API_KEY
+    description: "API key for transcriptapi.com (YouTube transcripts + channel metadata)"
+    url: "https://transcriptapi.com"
+    secret: true
+
+provides_tools:
+  - yt_add_channel
+  - yt_remove_channel
+  - yt_list_channels
+  - yt_fetch_videos
+  - yt_trending
+  - yt_trigger_analysis
+  - yt_add_insight
+  - yt_search_insights
