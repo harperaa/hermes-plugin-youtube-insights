@@ -47,9 +47,17 @@ def _fts_query(text: str) -> str:
     words = [w for w in re.findall(r"[a-zA-Z0-9]{3,}", text.lower())]
     if not words:
         return ""
-    # Quoted-prefix terms ("cta"*) so singular/plural and stem variants match
-    # (qmd's stemming used to absorb this; FTS5 tokens are exact otherwise).
-    return " OR ".join(f'"{w}"*' for w in dict.fromkeys(words[:20]))
+    # Quoted-prefix terms ("cta"*) so singular queries match plural tokens,
+    # plus a stripped stem for plural-ish queries ("tests" also tries "test"*)
+    # — qmd's stemming used to absorb both directions; FTS5 tokens are exact.
+    terms: dict[str, None] = {}
+    for w in words[:20]:
+        terms[w] = None
+        for suffix in ("ies", "es", "s"):
+            if w.endswith(suffix) and len(w) - len(suffix) >= 3:
+                terms[w[: len(w) - len(suffix)]] = None
+                break
+    return " OR ".join(f'"{t}"*' for t in terms)
 
 
 def _candidates(conn, text: str) -> list[dict[str, Any]]:

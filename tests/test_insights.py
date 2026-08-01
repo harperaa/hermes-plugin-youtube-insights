@@ -176,3 +176,11 @@ def test_search_prefix_matches_plural(tmp_path):
     yti_insights.add_insight(conn, text="Mid-roll CTAs convert better after payoff", category="business", source_video_id="v1", insights_dir=tmp_path)
     res = yti_insights.search_insights(conn, query="CTA")
     assert res["total"] == 1
+
+
+def test_search_plural_query_matches_singular_token(tmp_path):
+    import yti_store, yti_insights
+    conn = yti_store.connect(tmp_path / "t.db")
+    yti_insights.add_insight(conn, text="A single test proves the pipeline works", category="technical", source_video_id="v2", insights_dir=tmp_path)
+    res = yti_insights.search_insights(conn, query="tests")
+    assert res["total"] == 1
