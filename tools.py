@@ -11,12 +11,13 @@ import os
 from typing import Any, Callable, Optional
 
 try:
-    from . import yti_fetcher, yti_insights, yti_analysis, yti_store
+    from . import yti_fetcher, yti_insights, yti_analysis, yti_store, yti_paths
 except ImportError:  # pragma: no cover
     import yti_fetcher  # type: ignore
     import yti_insights  # type: ignore
     import yti_analysis  # type: ignore
     import yti_store  # type: ignore
+    import yti_paths  # type: ignore
 
 # Wired by register() so tools can use the host LLM for borderline dedup.
 _llm_judge: Optional[Callable] = None
@@ -97,7 +98,8 @@ def yt_trending(args: dict, **kwargs) -> str:
         conn.close()
         slim = [{k: v for k, v in vid.items() if k != "sparklinePoints"}
                 for vid in videos]
-        return json.dumps({"videos": slim, "count": len(slim)})
+        return json.dumps({"videos": slim, "count": len(slim),
+                           "workspaceRoot": str(yti_paths.workspace_dir())})
     except Exception as exc:  # noqa: BLE001
         return _err(str(exc))
 

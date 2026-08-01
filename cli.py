@@ -15,8 +15,39 @@ CRON_PROMPT = (
     "for EACH work item in the result, follow its 'instructions' field "
     "exactly — load the youtube-insights:youtube-video-analyst skill, read "
     "the transcript file, write the analysis.md output file, and record "
-    "10-15 insights per video with the yt_add_insight tool. Finish with a "
-    "one-paragraph summary of videos fetched, analyzed, and insights added."
+    "10-15 insights per video with the yt_add_insight tool. Do NOT raise the "
+    "analysis limit to catch up a backlog — the cap is deliberate pacing; the "
+    "long tail defers to the next daily window. Do NOT write insight files to "
+    "disk yourself; insights are stored ONLY via the yt_add_insight tool. "
+    "Finish with a one-paragraph summary of videos fetched, analyzed, and "
+    "insights added."
+)
+
+# Second routine, ported from paperclip's "YouTube Content Pipeline"
+# (0 6,18 * * *). Scope-reduced: gap analysis + concepts + human-review
+# summary. Script writing and graphics moved to digital-marketing-pro.
+PIPELINE_NAME = "youtube-content-pipeline"
+PIPELINE_SCHEDULE = "0 6,18 * * *"
+PIPELINE_PROMPT = (
+    "Content pipeline: turn YouTube competitive intelligence into content "
+    "concepts for human review. Prerequisite: the youtube-intelligence-"
+    "refresh job should have run so transcripts and insights exist. "
+    "Step 1 — Research: call the yt_search_insights tool with several broad "
+    "queries (hooks, structure, topics, audience, offers) to map the insight "
+    "landscape; note saturated vs underserved topics. Also call yt_trending "
+    "to get the current top videos by VPH. "
+    "Step 2 — Gap analysis: load the youtube-insights:youtube-gap-finder "
+    "skill and run it against the top 10 VPH videos and the insight map. "
+    "Produce about 3 content concepts with net-new information gain. Save "
+    "each concept as a markdown file at youtube/{today}/recommended/"
+    "{topic-slug}/concept.md inside the youtube-insights plugin workspace "
+    "directory (the same workspace root where yt_fetch_videos writes the "
+    "youtube/{date} folders; ask yt_trending for workspaceRoot if unsure). "
+    "Step 3 — Review handoff: write a summary of all concepts (title, angle, "
+    "evidence, why it wins) to youtube/{today}/recommended/SUMMARY.md and "
+    "finish by printing that summary for human review. Do NOT write scripts "
+    "or generate images — script and asset production is handled separately "
+    "(digital-marketing-pro) after a human approves the concepts."
 )
 
 
@@ -30,7 +61,8 @@ def _hermes_argv() -> list[str]:
 def setup(subparser) -> None:
     sub = subparser.add_subparsers(dest="yti_cmd")
     p_cron = sub.add_parser("setup-cron",
-                            help="Install the daily 03:00 intelligence-refresh cron job")
+                            help="Install the scheduled jobs: intelligence refresh "
+                                 "(daily 03:00) and content pipeline (06:00/18:00)")
     p_cron.add_argument("--apply", action="store_true",
                         help="Create the job now (default: print the command)")
     p_cron.add_argument("--schedule", default=CRON_SCHEDULE,
@@ -42,19 +74,24 @@ def setup(subparser) -> None:
 def handle(args) -> int:
     cmd = getattr(args, "yti_cmd", None)
     if cmd == "setup-cron":
-        argv = _hermes_argv() + [
-            "cron", "create", args.schedule, CRON_PROMPT, "--name", CRON_NAME,
+        jobs = [
+            (args.schedule, CRON_PROMPT, CRON_NAME),
+            (PIPELINE_SCHEDULE, PIPELINE_PROMPT, PIPELINE_NAME),
         ]
-        if args.apply:
-            proc = subprocess.run(argv)
-            return proc.returncode
-        shown = " ".join(
-            f'"{a}"' if " " in a else a for a in argv
-        )
-        print("Run this to install the daily intelligence-refresh job "
-              "(or re-run with --apply):\n")
-        print(f"  {shown}\n")
-        return 0
+        rc = 0
+        for schedule, prompt, name in jobs:
+            argv = _hermes_argv() + [
+                "cron", "create", schedule, prompt, "--name", name,
+            ]
+            if args.apply:
+                proc = subprocess.run(argv)
+                rc = rc or proc.returncode
+            else:
+                shown = " ".join(f'"{a}"' if " " in a else a for a in argv)
+                print(f"# {name} ({schedule})\n  {shown}\n")
+        if not args.apply:
+            print("Re-run with --apply to create both jobs now.")
+        return rc
 
     try:
         from . import yti_store, yti_insights, yti_fetcher
