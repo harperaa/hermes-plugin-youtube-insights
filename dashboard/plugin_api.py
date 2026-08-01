@@ -27,6 +27,7 @@ import yti_fetcher  # noqa: E402
 import yti_insights  # noqa: E402
 import yti_analysis  # noqa: E402
 import yti_paths  # noqa: E402
+import yti_workspace  # noqa: E402
 
 router = APIRouter()
 
@@ -166,3 +167,32 @@ def delete_insight(insight_id: str) -> dict[str, Any]:
         return yti_insights.delete_insight(conn, insight_id)
     finally:
         conn.close()
+
+
+# -- workspace deliverables (Artifacts tab) ----------------------------------
+
+class WorkspaceWrite(BaseModel):
+    path: str
+    content: str
+
+
+@router.get("/workspace/tree")
+def get_workspace_tree() -> dict[str, Any]:
+    return {"tree": yti_workspace.build_tree(),
+            "workspaceRoot": str(yti_paths.workspace_dir())}
+
+
+@router.get("/workspace/file")
+def get_workspace_file(path: str) -> dict[str, Any]:
+    result = yti_workspace.read_file(path)
+    if not result.get("ok"):
+        raise HTTPException(status_code=400, detail=result.get("error"))
+    return result
+
+
+@router.put("/workspace/file")
+def put_workspace_file(body: WorkspaceWrite) -> dict[str, Any]:
+    result = yti_workspace.write_file(body.path, body.content)
+    if not result.get("ok"):
+        raise HTTPException(status_code=400, detail=result.get("error"))
+    return result

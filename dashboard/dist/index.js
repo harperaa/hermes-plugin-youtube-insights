@@ -556,8 +556,293 @@
     );
   }
 
+
   // -------------------------------------------------------------------------
-  // Root page: Trends | Insights sub-tabs
+  // Markdown renderer (same approach as the value-creator plugin's bundle)
+  // -------------------------------------------------------------------------
+
+  function mdInline(text, keyBase) {
+    var out = [];
+    var rest = String(text);
+    var key = 0;
+    var re = /(\*\*([^*]+)\*\*|`([^`]+)`|\[([^\]]+)\]\(([^)\s]+)\)|\*([^*]+)\*)/;
+    while (rest.length) {
+      var m = re.exec(rest);
+      if (!m) { out.push(rest); break; }
+      if (m.index > 0) out.push(rest.slice(0, m.index));
+      var k = keyBase + "-" + key++;
+      if (m[2] != null) out.push(h("strong", { key: k }, m[2]));
+      else if (m[3] != null) out.push(h("code", { key: k }, m[3]));
+      else if (m[4] != null)
+        out.push(h("a", { key: k, href: m[5], target: "_blank", rel: "noreferrer" }, m[4]));
+      else if (m[6] != null) out.push(h("em", { key: k }, m[6]));
+      rest = rest.slice(m.index + m[1].length);
+    }
+    return out;
+  }
+
+  function splitTableRow(line) {
+    var t = line.trim().replace(/^\|/, "").replace(/\|$/, "");
+    return t.split("|").map(function (c) { return c.trim(); });
+  }
+
+  function isTableDivider(line) {
+    return /^\s*\|?\s*:?-{2,}.*\|/.test(line) && /^[\s|:-]+$/.test(line);
+  }
+
+  function renderMarkdown(md) {
+    var lines = String(md || "").split(/\r?\n/);
+    var blocks = [];
+    var i = 0;
+    var key = 0;
+    while (i < lines.length) {
+      var line = lines[i];
+      if (!line.trim()) { i++; continue; }
+      var hm = /^(#{1,6})\s+(.*)$/.exec(line);
+      if (hm) {
+        blocks.push(h("h" + Math.min(6, hm[1].length + 1), { key: "k" + key++ },
+          mdInline(hm[2], "h" + key)));
+        i++;
+        continue;
+      }
+      if (/^```/.test(line)) {
+        var code = [];
+        i++;
+        while (i < lines.length && !/^```/.test(lines[i])) { code.push(lines[i]); i++; }
+        i++;
+        blocks.push(h("pre", { key: "k" + key++ }, h("code", null, code.join("\n"))));
+        continue;
+      }
+      if (line.indexOf("|") >= 0 && i + 1 < lines.length && isTableDivider(lines[i + 1])) {
+        var headCells = splitTableRow(line);
+        i += 2;
+        var rows = [];
+        while (i < lines.length && lines[i].indexOf("|") >= 0 && lines[i].trim()) {
+          rows.push(splitTableRow(lines[i]));
+          i++;
+        }
+        blocks.push(
+          h("table", { key: "k" + key++ },
+            h("thead", null, h("tr", null, headCells.map(function (c, ci) {
+              return h("th", { key: ci }, mdInline(c, "th" + ci));
+            }))),
+            h("tbody", null, rows.map(function (r, ri) {
+              return h("tr", { key: ri }, r.map(function (c, ci) {
+                return h("td", { key: ci }, mdInline(c, "td" + ri + "-" + ci));
+              }));
+            }))
+          )
+        );
+        continue;
+      }
+      if (/^\s*([-*]|\d+\.)\s+/.test(line)) {
+        var ordered = /^\s*\d+\./.test(line);
+        var items = [];
+        while (i < lines.length && /^\s*([-*]|\d+\.)\s+/.test(lines[i])) {
+          items.push(lines[i].replace(/^\s*([-*]|\d+\.)\s+/, ""));
+          i++;
+        }
+        blocks.push(
+          h(ordered ? "ol" : "ul", { key: "k" + key++ }, items.map(function (it, ii) {
+            return h("li", { key: ii }, mdInline(it, "li" + ii));
+          }))
+        );
+        continue;
+      }
+      var para = [];
+      while (i < lines.length && lines[i].trim() && !/^(#{1,6})\s|^```|^\s*([-*]|\d+\.)\s+/.test(lines[i]) &&
+             !(lines[i].indexOf("|") >= 0 && i + 1 < lines.length && isTableDivider(lines[i + 1]))) {
+        para.push(lines[i]);
+        i++;
+      }
+      blocks.push(h("p", { key: "k" + key++ }, mdInline(para.join(" "), "p" + key)));
+    }
+    return h("div", { className: "yti-md" }, blocks);
+  }
+
+  // -------------------------------------------------------------------------
+  // Artifacts view — port of the original Workspace Deliverables page
+  // -------------------------------------------------------------------------
+
+  var FILE_ICONS = {
+    ".md": "📝", ".txt": "📄", ".json": "🔧", ".csv": "🔢",
+    ".png": "🖼", ".jpg": "🖼", ".jpeg": "🖼", ".webp": "🖼", ".gif": "🖼",
+    ".pdf": "📕",
+  };
+
+  function TreeEntry(props) {
+    var node = props.node;
+    var depth = props.depth || 0;
+    var openState = useState(depth < 2);
+    var open = openState[0], setOpen = openState[1];
+    if (node.kind === "dir") {
+      return h("div", { className: "yti-tree-dir" },
+        h("div", {
+          className: "yti-tree-row",
+          style: { paddingLeft: (depth * 14) + "px" },
+          onClick: function () { setOpen(!open); },
+        },
+          h("span", { className: "yti-tree-caret" }, open ? "▾" : "▸"),
+          h("span", { className: "yti-tree-name" }, "📁 " + node.name)
+        ),
+        open ? (node.children || []).map(function (c) {
+          return h(TreeEntry, { key: c.relPath, node: c, depth: depth + 1,
+                                selected: props.selected, onSelect: props.onSelect });
+        }) : null
+      );
+    }
+    var active = props.selected === node.relPath;
+    return h("div", {
+      className: "yti-tree-row yti-tree-file" + (active ? " yti-tree-active" : ""),
+      style: { paddingLeft: (depth * 14 + 16) + "px" },
+      onClick: function () { props.onSelect(node); },
+    },
+      h("span", { className: "yti-tree-name" },
+        (FILE_ICONS[node.ext] || "📄") + " " + node.name),
+      h("span", { className: "yti-tree-size" }, formatNumber(node.size) + "B")
+    );
+  }
+
+  function ArtifactsView() {
+    var treeState = useState(null);
+    var tree = treeState[0], setTree = treeState[1];
+    var selState = useState(null);
+    var sel = selState[0], setSel = selState[1];
+    var fileState = useState(null);
+    var file = fileState[0], setFile = fileState[1];
+    var editState = useState(null); // null = viewing; string = editing buffer
+    var editing = editState[0], setEditing = editState[1];
+    var busyState = useState(false);
+    var busy = busyState[0], setBusy = busyState[1];
+    var pdfUrlState = useState(null);
+    var pdfUrl = pdfUrlState[0], setPdfUrl = pdfUrlState[1];
+
+    var loadTree = useCallback(function () {
+      api("/workspace/tree").then(function (d) { setTree(d.tree || []); })
+        .catch(function () { setTree([]); });
+    }, []);
+    useEffect(function () { loadTree(); }, [loadTree]);
+
+    useEffect(function () {
+      setEditing(null);
+      setFile(null);
+      if (pdfUrl) { URL.revokeObjectURL(pdfUrl); setPdfUrl(null); }
+      if (!sel) return;
+      if (sel.ext === ".pdf") {
+        SDK.authedFetch("/api/plugins/youtube-insights/workspace/file?path=" +
+                        encodeURIComponent(sel.relPath))
+          .then(function (r) { return r.json(); })
+          .then(function (d) {
+            var bytes = atob(d.base64 || "");
+            var arr = new Uint8Array(bytes.length);
+            for (var i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
+            var url = URL.createObjectURL(new Blob([arr], { type: "application/pdf" }));
+            setPdfUrl(url);
+            setFile(d);
+          })
+          .catch(function () { setFile({ ok: false, error: "Could not load PDF." }); });
+        return;
+      }
+      api("/workspace/file?path=" + encodeURIComponent(sel.relPath))
+        .then(setFile)
+        .catch(function (e) { setFile({ ok: false, error: String(e && e.message || e) }); });
+    }, [sel && sel.relPath]);
+
+    function save() {
+      if (editing == null || !sel) return;
+      setBusy(true);
+      api("/workspace/file", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path: sel.relPath, content: editing }),
+      }).then(function () {
+        setBusy(false);
+        setFile(Object.assign({}, file, { text: editing }));
+        setEditing(null);
+      }).catch(function (e) {
+        setBusy(false);
+        alert("Save failed: " + (e && e.message || e));
+      });
+    }
+
+    var preview;
+    if (!sel) {
+      preview = h("div", { className: "yti-empty" },
+        "Select a file to preview it. Pipeline outputs land under ",
+        h("code", null, "youtube/{date}/recommended/"),
+        " — concepts, scripts, and generated assets.");
+    } else if (!file) {
+      preview = h("div", { className: "yti-empty" }, "Loading…");
+    } else if (file.ok === false) {
+      preview = h("div", { className: "yti-empty yti-error" }, file.error || "Could not read file.");
+    } else if (sel.ext === ".pdf") {
+      preview = pdfUrl
+        ? h("object", { data: pdfUrl, type: "application/pdf", className: "yti-pdf" },
+            h("a", { href: pdfUrl, download: sel.name }, "Download " + sel.name))
+        : h("div", { className: "yti-empty" }, "Loading PDF…");
+    } else if (file.kind === "binary" && (file.mimeType || "").indexOf("image/") === 0) {
+      preview = h("img", {
+        className: "yti-artifact-img",
+        src: "data:" + file.mimeType + ";base64," + file.base64,
+        alt: sel.name,
+      });
+    } else if (file.kind === "text" && sel.ext === ".md") {
+      preview = editing != null
+        ? h("textarea", {
+            className: "yti-md-editor", value: editing,
+            onChange: function (e) { setEditing(e.target.value); },
+          })
+        : renderMarkdown(file.text);
+    } else if (file.kind === "text") {
+      preview = editing != null
+        ? h("textarea", {
+            className: "yti-md-editor", value: editing,
+            onChange: function (e) { setEditing(e.target.value); },
+          })
+        : h("pre", { className: "yti-pre" }, file.text);
+    } else {
+      preview = h("div", { className: "yti-empty" }, "No preview for " + sel.ext + " files.");
+    }
+
+    var canEdit = sel && file && file.kind === "text" &&
+      [".md", ".txt", ".json", ".yml", ".yaml", ".csv"].indexOf(sel.ext) >= 0;
+
+    return h("div", { className: "yti-artifacts" },
+      h("div", { className: "yti-artifacts-head" },
+        h("h2", null, "Workspace Deliverables"),
+        h("div", { className: "yti-actions" },
+          canEdit ? (editing != null
+            ? [h(Button, { key: "save", size: "sm", disabled: busy, onClick: save },
+                busy ? "Saving…" : "Save"),
+               h(Button, { key: "cancel", size: "sm", variant: "outline",
+                 onClick: function () { setEditing(null); } }, "Cancel")]
+            : h(Button, { size: "sm", variant: "outline",
+                onClick: function () { setEditing(file.text || ""); } }, "Edit")) : null,
+          h(Button, { size: "sm", variant: "outline", onClick: loadTree }, "Refresh")
+        )
+      ),
+      h("div", { className: "yti-artifacts-body" },
+        h("div", { className: "yti-tree" },
+          tree == null ? h("div", { className: "yti-empty" }, "Loading…")
+          : tree.length === 0
+            ? h("div", { className: "yti-empty" },
+                "No deliverables yet. The scheduled pipeline writes concepts and ",
+                "scripts to ", h("code", null, "youtube/{date}/recommended/"), ".")
+            : tree.map(function (n) {
+                return h(TreeEntry, { key: n.relPath, node: n, depth: 0,
+                  selected: sel && sel.relPath,
+                  onSelect: function (node) { setSel(node); } });
+              })
+        ),
+        h("div", { className: "yti-preview" },
+          sel ? h("div", { className: "yti-preview-path" }, sel.relPath) : null,
+          preview)
+      )
+    );
+  }
+
+  // -------------------------------------------------------------------------
+  // Root page: Trends | Insights | Artifacts sub-tabs
   // -------------------------------------------------------------------------
 
   function YouTubeInsightsPage() {
@@ -571,9 +856,15 @@
         h("button", {
           className: "yti-tab" + (view === "insights" ? " yti-tab-active" : ""),
           onClick: function () { setView("insights"); },
-        }, "Insights")
+        }, "Insights"),
+        h("button", {
+          className: "yti-tab" + (view === "artifacts" ? " yti-tab-active" : ""),
+          onClick: function () { setView("artifacts"); },
+        }, "Artifacts")
       ),
-      view === "trends" ? h(TrendsView) : h(InsightsView)
+      view === "trends" ? h(TrendsView)
+        : view === "insights" ? h(InsightsView)
+        : h(ArtifactsView)
     );
   }
 

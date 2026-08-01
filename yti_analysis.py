@@ -32,6 +32,69 @@ DEFAULT_ANALYSIS_ORDER_BY = "vph"
 MIN_INSIGHTS = 10
 MAX_RETRIES = 2
 
+ANALYST_SKILLS = ["youtube-insights:youtube-video-analyst"]
+_OPEN_KANBAN_STATUSES = {"triage", "todo", "scheduled", "ready", "claimed",
+                         "in_progress", "in-progress", "review", "blocked"}
+
+
+def _kanban():
+    """Return hermes_cli.kanban_db, or None when running outside hermes."""
+    try:
+        from hermes_cli import kanban_db
+        return kanban_db
+    except ImportError:  # pragma: no cover - exercised via monkeypatch in tests
+        return None
+
+
+def _kanban_task_open(kb, conn_kb, task_id: str) -> bool:
+    try:
+        task = kb.get_task(conn_kb, task_id)
+    except Exception:
+        return False
+    if task is None:
+        return False
+    status = getattr(task, "status", None) or (
+        task.get("status") if isinstance(task, dict) else None)
+    return str(status) in _OPEN_KANBAN_STATUSES
+
+
+def analysis_task_title(video_title: str) -> str:
+    return f"Analyze: {video_title}"
+
+
+def create_analysis_kanban_task(conn, item: dict[str, Any]) -> Optional[str]:
+    """Create one kanban task for a queued work item, deduping against a
+    still-open task recorded on the queue row. Returns the kanban task id,
+    or None when kanban is unavailable (graceful fallback)."""
+    kb = _kanban()
+    if kb is None:
+        return None
+    row = conn.execute(
+        "SELECT kanban_task_id FROM analysis_queue WHERE video_id = ?",
+        (item["videoId"],),
+    ).fetchone()
+    existing = row["kanban_task_id"] if row else None
+    try:
+        with kb.connect_closing() as conn_kb:
+            if existing and _kanban_task_open(kb, conn_kb, existing):
+                return existing
+            task_id = kb.create_task(
+                conn_kb,
+                title=analysis_task_title(item["title"]),
+                body=item["instructions"],
+                created_by="youtube-insights",
+                workspace_kind="scratch",
+                skills=list(ANALYST_SKILLS),
+            )
+    except Exception:
+        return None
+    conn.execute(
+        "UPDATE analysis_queue SET kanban_task_id = ? WHERE video_id = ?",
+        (task_id, item["videoId"]),
+    )
+    conn.commit()
+    return task_id
+
 
 def _analysis_path(transcript_path: str, workspace: Path) -> Path:
     return (workspace / transcript_path).parent / "analysis.md"
@@ -108,13 +171,16 @@ def trigger_analysis(
         yti_store.set_video_status(conn, video["videoId"], "analyzing")
         conn.execute(
             """INSERT OR REPLACE INTO analysis_queue
-               (video_id, created_at, retries, status)
+               (video_id, created_at, retries, status, kanban_task_id)
                VALUES (?, ?, COALESCE((SELECT retries FROM analysis_queue
-                                       WHERE video_id = ?), 0), 'pending')""",
-            (video["videoId"], yti_store.now_iso(), video["videoId"]),
+                                       WHERE video_id = ?), 0), 'pending',
+                       (SELECT kanban_task_id FROM analysis_queue
+                        WHERE video_id = ?))""",
+            (video["videoId"], yti_store.now_iso(), video["videoId"],
+             video["videoId"]),
         )
         conn.commit()
-        queued.append({
+        item = {
             "videoId": video["videoId"],
             "title": video["title"],
             "vph": video["vph"],
@@ -122,11 +188,16 @@ def trigger_analysis(
             "analysisOutput": str(analysis_abs),
             "instructions": work_item_instructions(video, transcript_abs,
                                                    analysis_abs),
-        })
+        }
+        kanban_id = create_analysis_kanban_task(conn, item)
+        if kanban_id:
+            item["kanbanTaskId"] = kanban_id
+        queued.append(item)
 
     yti_store.set_meta(conn, "last_analysis_run", yti_store.now_iso())
+    routed = sum(1 for q in queued if q.get("kanbanTaskId"))
     return {"triggered": len(queued), "limit": limit, "orderBy": order_by,
-            "items": queued}
+            "kanbanRouted": routed, "items": queued}
 
 
 def validate_analysis(conn, video_id: str,
@@ -183,3 +254,46 @@ def validate_analysis(conn, video_id: str,
     conn.commit()
     return {"ok": False, "failed": True, "analysis": analysis_ok,
             "insights": insight_count}
+
+
+def handle_kanban_completion(conn, kanban_task_id: str,
+                             workspace: Optional[Path] = None,
+                             ) -> Optional[dict[str, Any]]:
+    """kanban_task_completed hook path: validate the finished analysis task's
+    video; on a retryable failure, open a fresh kanban retry task. Returns
+    None when the completed task is not one of ours."""
+    row = conn.execute(
+        "SELECT video_id FROM analysis_queue WHERE kanban_task_id = ?",
+        (kanban_task_id,),
+    ).fetchone()
+    if not row:
+        return None
+    video_id = row["video_id"]
+    workspace = workspace or yti_paths.workspace_dir()
+    result = validate_analysis(conn, video_id, workspace=workspace)
+
+    if result.get("retry"):
+        state = yti_store.get_video(conn, video_id)
+        if state and state.get("transcript_path"):
+            transcript_abs = workspace / state["transcript_path"]
+            analysis_abs = _analysis_path(state["transcript_path"], workspace)
+            video = {"videoId": video_id,
+                     "title": state.get("title") or video_id,
+                     "author": state.get("author") or "",
+                     "vph": state.get("vph") or 0}
+            item = {
+                "videoId": video_id,
+                "title": video["title"],
+                "instructions": work_item_instructions(
+                    video, transcript_abs, analysis_abs),
+            }
+            # Clear the stale id so dedupe doesn't resurrect the closed task.
+            conn.execute(
+                "UPDATE analysis_queue SET kanban_task_id = NULL "
+                "WHERE video_id = ?", (video_id,))
+            conn.commit()
+            retry_task = create_analysis_kanban_task(conn, item)
+            if retry_task:
+                result["retryKanbanTaskId"] = retry_task
+    result["videoId"] = video_id
+    return result

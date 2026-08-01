@@ -1,10 +1,11 @@
 name: youtube-insights
 version: 1.0.0
 description: >
-  YouTube competitive intelligence — track competitor channels, pull
-  transcripts, rank videos by views-per-hour (VPH), and mine transcripts
-  into a deduplicated, searchable insight knowledge base. Dashboard tab
-  with Trends and Insights pages.
+  YouTube competitive intelligence and content production — track competitor
+  channels, pull transcripts, rank videos by views-per-hour (VPH), mine
+  transcripts into a deduplicated insight knowledge base, and turn insights
+  into concepts, scripts, and Grok-generated beat images. Dashboard tab with
+  Trends, Insights, and Artifacts pages.
 author: Allen Harper
 kind: standalone
 manifest_version: 1
@@ -24,3 +25,6 @@ provides_tools:
   - yt_trigger_analysis
   - yt_add_insight
   - yt_search_insights
+
+provides_hooks:
+  - kanban_task_completed

@@ -72,6 +72,33 @@ def _cmd_yt_analyze(raw_args: str) -> str:
             "yt_trigger_analysis (analyst skill → analysis.md → yt_add_insight).")
 
 
+def _on_kanban_task_completed(task_id: str, **kwargs) -> None:
+    """Validate an 'Analyze: <video>' task's deliverables when its worker
+    completes; open a retry task (max 2) when the acceptance gate fails."""
+    try:
+        from . import yti_store, yti_analysis
+    except ImportError:  # pragma: no cover
+        import yti_store, yti_analysis  # type: ignore
+    try:
+        conn = yti_store.connect()
+        result = yti_analysis.handle_kanban_completion(conn, task_id)
+        conn.close()
+        if result is None:
+            return
+        if result.get("ok"):
+            logger.info("analysis task %s validated: %s insights",
+                        task_id, result.get("insights"))
+        elif result.get("retry"):
+            logger.warning("analysis task %s failed validation — retry #%s "
+                           "opened (%s)", task_id, result.get("retry"),
+                           result.get("retryKanbanTaskId"))
+        else:
+            logger.error("analysis task %s exhausted retries: %s",
+                         task_id, result)
+    except Exception:  # noqa: BLE001 - hooks must never break the worker
+        logger.exception("kanban completion handling failed for %s", task_id)
+
+
 def register(ctx) -> None:
     # Tools
     for name, schema, handler, req_env in _TOOLS:
@@ -95,6 +122,9 @@ def register(ctx) -> None:
         tools.set_llm_judge(yti_insights.make_llm_judge(_complete_text))
     except Exception:  # pragma: no cover - judge is optional
         tools.set_llm_judge(None)
+
+    # Analysis tasks are dispatched through kanban; validate on completion.
+    ctx.register_hook("kanban_task_completed", _on_kanban_task_completed)
 
     # Slash commands
     ctx.register_command("yt", handler=_cmd_yt,

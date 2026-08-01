@@ -11,7 +11,7 @@ Single-file database with WAL mode. Tables:
     insight_sources(insight_id, video_id, context, timestamp_ref, source_url,
                     added_at)
     insights_fts(text, detail)   -- FTS5 external-content index w/ triggers
-    analysis_queue(video_id PK, created_at, retries, status, last_error)
+    analysis_queue(video_id PK, created_at, retries, status, last_error, kanban_task_id)
 
 The insight full-text index replaces the original plugin's qmd
 (BM25 + embeddings) dependency: candidate retrieval for dedup and the
@@ -98,7 +98,8 @@ CREATE TABLE IF NOT EXISTS analysis_queue (
     created_at TEXT NOT NULL,
     retries INTEGER NOT NULL DEFAULT 0,
     status TEXT NOT NULL DEFAULT 'pending',
-    last_error TEXT
+    last_error TEXT,
+    kanban_task_id TEXT
 );
 CREATE TABLE IF NOT EXISTS meta (
     key TEXT PRIMARY KEY,
@@ -121,6 +122,12 @@ def connect(path: Optional[Path] = None) -> sqlite3.Connection:
     conn.execute("PRAGMA foreign_keys=ON")
     with _LOCK:
         conn.executescript(SCHEMA)
+        cols = {r["name"] for r in conn.execute(
+            "PRAGMA table_info(analysis_queue)")}
+        if "kanban_task_id" not in cols:
+            conn.execute(
+                "ALTER TABLE analysis_queue ADD COLUMN kanban_task_id TEXT")
+            conn.commit()
     return conn
 
 
