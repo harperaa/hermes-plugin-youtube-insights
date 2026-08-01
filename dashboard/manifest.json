@@ -1,12 +1,12 @@
 {
   "name": "youtube-insights",
   "label": "YouTube Insights",
-  "description": "Competitor YouTube intelligence — VPH trends, transcripts, and a deduplicated insight knowledge base",
+  "description": "Competitor YouTube intelligence \u2014 VPH trends, transcripts, and a deduplicated insight knowledge base",
   "icon": "Video",
   "version": "1.0.0",
   "tab": {
     "path": "/youtube",
-    "position": "after:skills"
+    "position": "after:value-creator"
   },
   "entry": "dist/index.js",
   "css": "dist/style.css",
