@@ -168,3 +168,11 @@ def test_empty_query_sort_recent(conn):
     _add(conn, "Newer insight text about endings and loops", vid="v2")
     res = yti_insights.search_insights(conn, sort_by="recent")
     assert res["insights"][0]["text"].startswith("Newer")
+
+
+def test_search_prefix_matches_plural(tmp_path):
+    import yti_store, yti_insights
+    conn = yti_store.connect(tmp_path / "t.db")
+    yti_insights.add_insight(conn, text="Mid-roll CTAs convert better after payoff", category="business", source_video_id="v1", insights_dir=tmp_path)
+    res = yti_insights.search_insights(conn, query="CTA")
+    assert res["total"] == 1
