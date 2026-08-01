@@ -16,7 +16,7 @@ the `yt_search_insights` / `yt_trending` tools and the workspace files.
 ## Install
 
 ```bash
-hermes plugins install harperaa/youtube-insights --enable
+hermes plugins install harperaa/hermes-plugin-youtube-insights --enable
 ```
 
 You'll be prompted for `TRANSCRIPT_API_KEY`
@@ -71,7 +71,7 @@ workspace/insights/{id}.md     # one markdown file per insight
 ## Development
 
 ```bash
-git clone https://github.com/harperaa/youtube-insights
+git clone https://github.com/harperaa/hermes-plugin-youtube-insights
 ln -s "$PWD/youtube-insights" ~/.hermes/plugins/youtube-insights
 hermes plugins enable youtube-insights
 python -m pytest            # 58 unit tests, no network needed
