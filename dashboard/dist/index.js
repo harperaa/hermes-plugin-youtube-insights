@@ -263,7 +263,11 @@
       }, notice.text) : null,
       data && data.hasApiKey === false
         ? h("div", { className: "yti-notice yti-notice-error" },
-            "TRANSCRIPT_API_KEY is not configured — set it in Settings → Environment to enable fetching.")
+            "TRANSCRIPT_API_KEY is not configured — create a key at ",
+            h("a", { href: "https://transcriptapi.com", target: "_blank", rel: "noreferrer" }, "transcriptapi.com"),
+            ", then set it on the ",
+            h("a", { href: "/keys" }, "Keys page"),
+            " (Custom Keys → TRANSCRIPT_API_KEY) to enable fetching.")
         : null,
 
       // Stats
