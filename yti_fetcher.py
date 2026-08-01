@@ -16,6 +16,7 @@ HTTP is injectable (``http_get``) so tests never hit the network.
 from __future__ import annotations
 
 import json
+import os
 import time
 import urllib.parse
 import urllib.request
@@ -30,14 +31,16 @@ except ImportError:  # pragma: no cover
     import yti_store  # type: ignore
     import yti_vph  # type: ignore
 
-API_BASE = "https://transcriptapi.com/api/v2"
+API_BASE = os.environ.get("YTI_API_BASE", "https://transcriptapi.com/api/v2")
 DEFAULT_LOOKBACK_DAYS = 30
 
 HttpGet = Callable[[str, dict[str, str]], tuple[int, dict[str, Any]]]
 
 
 def _default_http_get(url: str, headers: dict[str, str]) -> tuple[int, dict[str, Any]]:
-    req = urllib.request.Request(url, headers=headers)
+    # transcriptapi.com sits behind Cloudflare, which rejects Python-urllib's
+    # default signature with error 1010; a curl-style UA passes.
+    req = urllib.request.Request(url, headers={"User-Agent": "curl/8.4.0", **headers})
     try:
         with urllib.request.urlopen(req, timeout=60) as resp:
             body = resp.read().decode("utf-8", errors="replace")
