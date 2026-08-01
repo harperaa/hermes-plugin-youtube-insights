@@ -33,18 +33,43 @@ fi
 **CRITICAL — do NOT `find`, `locate`, or otherwise search the filesystem for a `generate-image.py` copy outside the skill directory.** Other projects on this machine (`bastionclaw`, `nanoclaw`, `clawd`, etc.) may have their own copies of this script with different APIs, different defaults, or different security constraints. Using them would be wrong. If the skill-directory copy is missing, stop and report the block; do NOT substitute a copy from an unrelated project.
 
 ```bash
-# Generate a new image (JPEG bytes — use a .jpg output path)
-python3 "$GEN_IMG" --prompt "<prompt>" --out "<output-path>.jpg" --aspect-ratio 16:9
+# Generate a new image (JPEG bytes — use a .jpg output path).
+# ALWAYS pass --expect-text with every text label the image must contain —
+# this drives the built-in spelling/quality QA gate (see below).
+python3 "$GEN_IMG" --prompt "<prompt>" --out "<output-path>.jpg" --aspect-ratio 16:9 \
+    --expect-text "LABEL ONE,LABEL TWO"
+
+# Sketchnote beat visuals: ALWAYS anchor to the bundled baseline reference
+# (image-to-image via the xAI edits endpoint) so the style stays locked:
+python3 "$GEN_IMG" --prompt "<prompt>" --out "<output-path>.jpg" --aspect-ratio 16:9 \
+    --input "$SKILL_DIR/youtube-baseline-reference.png" --expect-text "..."
 
 # Higher-quality variant (slower):
 python3 "$GEN_IMG" --prompt "<prompt>" --out "<output-path>.jpg" --aspect-ratio 16:9 --model grok-imagine-image-quality
 ```
 
-**No image-editing / image-input mode.** The xAI generations endpoint takes a text
-prompt only — there is no `--input` anchor. Style is carried entirely by the
-Style Preamble text (below), and the bundled reference PNGs are used for
-VERIFICATION: after generating, view the output next to the reference and
-regenerate with a more specific prompt if it drifts.
+**Image-to-image IS supported** via `--input <path-or-url>` (routes to the xAI
+`images/edits` endpoint): the source image anchors composition/style and the
+prompt directs the transform. Use `youtube-baseline-reference.png` for
+sketchnote beats and `whiteboard-background.png` for whiteboard diagrams.
+
+## Mandatory QA gate — spelling and quality (never skip)
+
+Every generation is vision-verified automatically by the script (Grok vision):
+it transcribes ALL rendered text, fails on ANY misspelling, garbled or
+pseudo-text, broken arrows, extra fingers/limbs, cut-off elements, or
+illegible labels, and auto-regenerates with a corrective prompt (up to
+`--retries`, default 2). Rules:
+
+1. **Always pass `--expect-text`** with the exact labels/title the image must
+   render — the verifier checks them letter-for-letter.
+2. **Never pass `--no-verify`** for deliverables. It exists only for throwaway
+   experiments.
+3. If the script exits with a QA failure after retries, do NOT deliver the
+   image. Tighten the prompt (spell critical words letter-by-letter, reduce
+   the amount of rendered text) and rerun.
+4. Record each image's QA outcome in the MANIFEST (the script prints
+   `QA pass` with the transcription, or the failure reasons).
 
 Auth: `XAI_API_KEY` env var if set, otherwise the hermes `xai-oauth` login (`hermes auth add xai-oauth`) — the script reads the token from the hermes auth store automatically. No extra key is needed when Grok is already the session model.
 
@@ -52,9 +77,10 @@ If `generate-image.py` is not found in the skill directory, tell the user: "The 
 
 ## Image Editing
 
-**Not supported.** The xAI generations endpoint has no image-input/edit mode.
-To "fix" an image, regenerate it with a more specific prompt that names exactly
-what was wrong (e.g. "background must be cream paper, NOT white whiteboard").
+Supported via `--input` (xAI `images/edits`): pass the image to build from
+(local path or URL) plus a prompt describing the transform. For style fixes
+you can also regenerate with a more specific prompt that names exactly what
+was wrong (e.g. "background must be cream paper, NOT white whiteboard").
 
 ## Aspect Ratios
 
