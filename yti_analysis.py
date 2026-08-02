@@ -58,6 +58,22 @@ def _kanban_task_open(kb, conn_kb, task_id: str) -> bool:
     return str(status) in _OPEN_KANBAN_STATUSES
 
 
+def kick_dispatcher(max_spawn: int = 1) -> bool:
+    """One dispatcher pass NOW so freshly routed analysis tasks start without
+    waiting for the gateway's next 60s tick. Board-locked and best-effort."""
+    try:
+        kb = _kanban()
+        with kb.connect_closing() as conn:
+            kb.dispatch_once(
+                conn,
+                max_spawn=max_spawn,
+                default_assignee=resolve_kanban_assignee(),
+            )
+        return True
+    except Exception:
+        return False
+
+
 def resolve_kanban_assignee() -> str:
     """kanban.default_assignee from hermes config, else the base profile.
 
@@ -213,6 +229,10 @@ def trigger_analysis(
 
     yti_store.set_meta(conn, "last_analysis_run", yti_store.now_iso())
     routed = sum(1 for q in queued if q.get("kanbanTaskId"))
+    if routed:
+        # Start the first worker immediately; the gateway ticker (which
+        # honours the configured concurrency caps) drains the rest.
+        kick_dispatcher(max_spawn=1)
     return {"triggered": len(queued), "limit": limit, "orderBy": order_by,
             "kanbanRouted": routed, "items": queued}
 
