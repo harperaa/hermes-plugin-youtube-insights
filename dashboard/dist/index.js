@@ -266,7 +266,7 @@
             "TRANSCRIPT_API_KEY is not configured — create a key at ",
             h("a", { href: "https://transcriptapi.com", target: "_blank", rel: "noreferrer" }, "transcriptapi.com"),
             ", then set it on the ",
-            h("a", { href: "/keys" }, "Keys page"),
+            h("a", { href: "/env" }, "Keys page"),
             " (Custom Keys → TRANSCRIPT_API_KEY) to enable fetching.")
         : null,
 
