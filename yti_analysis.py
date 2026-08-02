@@ -58,6 +58,22 @@ def _kanban_task_open(kb, conn_kb, task_id: str) -> bool:
     return str(status) in _OPEN_KANBAN_STATUSES
 
 
+def resolve_kanban_assignee() -> str:
+    """kanban.default_assignee from hermes config, else the base profile.
+
+    Tasks created unassigned sit on the board flagged NEEDS ASSIGNEE and the
+    dispatcher never claims them — every task we create must be born assigned.
+    """
+    try:
+        from hermes_cli.config import load_config
+        val = ((load_config() or {}).get("kanban", {}) or {}).get("default_assignee")
+        if isinstance(val, str) and val.strip():
+            return val.strip()
+    except Exception:
+        pass
+    return "default"
+
+
 def analysis_task_title(video_title: str) -> str:
     return f"Analyze: {video_title}"
 
@@ -82,6 +98,7 @@ def create_analysis_kanban_task(conn, item: dict[str, Any]) -> Optional[str]:
                 conn_kb,
                 title=analysis_task_title(item["title"]),
                 body=item["instructions"],
+                assignee=resolve_kanban_assignee(),
                 created_by="youtube-insights",
                 workspace_kind="scratch",
                 skills=list(ANALYST_SKILLS),

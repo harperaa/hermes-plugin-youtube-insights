@@ -52,11 +52,13 @@ class FakeKanban:
         return FakeKanban._Ctx(self)
 
     def create_task(self, conn, *, title, body, created_by, workspace_kind,
-                    skills):
+                    skills, assignee=None):
+        assert assignee, "plugin tasks must be born assigned (NEEDS ASSIGNEE rule)"
         self.counter += 1
         tid = f"t_fake{self.counter}"
         record = {"id": tid, "title": title, "body": body, "status": "ready",
-                  "created_by": created_by, "skills": skills}
+                  "created_by": created_by, "skills": skills,
+                  "assignee": assignee}
         self.tasks[tid] = record
         self.created.append(record)
         return tid
