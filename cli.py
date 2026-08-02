@@ -56,11 +56,13 @@ CRON_PROMPT = (
 )
 
 # Second routine, ported from paperclip's "YouTube Content Pipeline"
-# (0 6,18 * * *). Scope-reduced: gap analysis + concepts + human-review
-# summary. Script writing and graphics moved to digital-marketing-pro.
+# (0 6,18 * * *). Scope-reduced: gap analysis + concepts + scripts for
+# human review. Only the graphics stage moved out (runs post-approval).
 PIPELINE_NAME = "youtube-content-pipeline"
 PIPELINE_SCHEDULE = "0 6,18 * * *"
-PIPELINE_PROMPT = (
+# Prior default prompt — kept VERBATIM for the dashboard's prompt migrator
+# (same contract as CRON_PROMPT_V1: only an unmodified job is upgraded).
+PIPELINE_PROMPT_V1 = (
     "Content pipeline: turn YouTube competitive intelligence into concepts "
     "and record-ready scripts for human review. Prerequisite: the youtube-"
     "intelligence-refresh job should have run so transcripts and insights "
@@ -82,6 +84,37 @@ PIPELINE_PROMPT = (
     "youtube-insights:image-style-guide skill for visual direction but do "
     "NOT generate images — the graphics stage (generate-image skill) runs "
     "only after a human approves the scripts. "
+    "Step 4 — Review handoff: write a summary of all concepts AND scripts "
+    "(title, angle, evidence, formats produced, file paths) to "
+    "youtube/{today}/recommended/SUMMARY.md and finish by printing that "
+    "summary for human review."
+)
+
+PIPELINE_PROMPT = (
+    "Content pipeline: turn YouTube competitive intelligence into concepts "
+    "and record-ready scripts for human review. Prerequisite: the youtube-"
+    "intelligence-refresh job should have run so transcripts and insights "
+    "exist. "
+    "Step 1 — Research: call the yt_search_insights tool with several broad "
+    "queries (hooks, structure, topics, audience, offers) to map the insight "
+    "landscape; note saturated vs underserved topics. Also call yt_trending "
+    "to get the current top videos by VPH (its workspaceRoot field is the "
+    "workspace directory all outputs go under). "
+    "Step 2 — Gap analysis: load the youtube-insights:youtube-gap-finder "
+    "skill and run it in Mode B (workspace sweep) against the top 10 VPH "
+    "videos and the insight map. Follow the skill's Mode B output contract "
+    "exactly: 3 topics with net-new information gain, each saved as THREE "
+    "concept files — concepts.md, concepts-hot-take.md, and "
+    "concepts-contrarian.md — in youtube/{today}/recommended/{topic-slug}/ "
+    "inside the workspace (9 concept files total). "
+    "Step 3 — Scripts: for EACH concept file, load the youtube-insights:"
+    "youtube-content-creator skill and produce its script outline (exact "
+    "spoken lines, a Visual field per beat) saved in the SAME folder as the "
+    "concept file: script-outline.md, script-outline-hot-take.md, and "
+    "script-outline-contrarian.md per topic (9 script files total). Consult "
+    "the youtube-insights:image-style-guide skill for visual direction but "
+    "do NOT generate images — the graphics stage (generate-image skill) "
+    "runs only after a human approves the scripts. "
     "Step 4 — Review handoff: write a summary of all concepts AND scripts "
     "(title, angle, evidence, formats produced, file paths) to "
     "youtube/{today}/recommended/SUMMARY.md and finish by printing that "

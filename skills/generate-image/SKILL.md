@@ -100,7 +100,7 @@ Default to `16:9` for technical diagrams and ALL YouTube beat images/thumbnails 
 
 ## Whiteboard vs Non-Whiteboard
 
-The whiteboard style (hand-drawn markers on white background) is the default for **technical diagrams, architecture visuals, and flow charts**. Use the whiteboard background (`--input "$WB"`) and the style preamble for these.
+The whiteboard style (hand-drawn markers on white background) is the default for **technical diagrams, architecture visuals, and flow charts**. Use the whiteboard background (`--input "$SKILL_DIR/whiteboard-background.png"`) and the style preamble for these.
 
 **Do NOT use whiteboard style for:**
 - YouTube thumbnails — these need bold, high-contrast, cinematic style readable at small sizes
@@ -149,9 +149,10 @@ All project diagrams use a **whiteboard sketch style** — hand-drawn feel with 
 ## Whiteboard Background
 
 A reference whiteboard canvas (`whiteboard-background.png`) is bundled in this
-skill's directory. The xAI endpoint cannot take it as an image input — use it
-as a VERIFICATION reference: generate from the whiteboard style prompt, then
-compare the output against the reference and regenerate if the look drifts.
+skill's directory. Pass it as the source image for whiteboard diagrams —
+`--input "$SKILL_DIR/whiteboard-background.png"` (xAI `images/edits`
+image-to-image) — AND still compare the output against it, regenerating if
+the look drifts.
 
 ---
 
@@ -175,7 +176,9 @@ whiteboard style — the two are not
 interchangeable.
 
 ```bash
-python3 "$GEN_IMG" --prompt "<style preamble + beat prompt>" --out "<output-path>.jpg" --aspect-ratio 16:9
+python3 "$GEN_IMG" --prompt "<style preamble + beat prompt>" --out "<output-path>.jpg" \
+    --aspect-ratio 16:9 --input "$SKILL_DIR/youtube-baseline-reference.png" \
+    --expect-text "<title and any labels that must appear letter-perfect>"
 ```
 
 ### Canvas
@@ -270,7 +273,7 @@ Generous white space. Polished and intentional, not scribbly. No watermarks. No 
 ```bash
 # Resolve the script path (see Usage section) and the YouTube baseline reference (above).
 
-python3 "$GEN_IMG" "Hand-drawn sketchnote-on-paper style. Warm cream / off-white paper background with a barely-visible faint pencil grid and small pastel scribble decorations in the four corners. Thin black hand-drawn frame with small bracket marks at each corner. Muted pastel palette only — pale sky blue, pale mint green, buttercream yellow, dusty coral, manila tan; charcoal black for all linework. No neon, no whiteboard look.
+python3 "$GEN_IMG" --prompt "Hand-drawn sketchnote-on-paper style. Warm cream / off-white paper background with a barely-visible faint pencil grid and small pastel scribble decorations in the four corners. Thin black hand-drawn frame with small bracket marks at each corner. Muted pastel palette only — pale sky blue, pale mint green, buttercream yellow, dusty coral, manila tan; charcoal black for all linework. No neon, no whiteboard look.
 
 Title at top center, large all-caps bold marker hand-lettering: 'AGENTS DON'T REPLACE DEVELOPERS'
 
@@ -282,7 +285,10 @@ Bottom row of three rounded-rectangle pastel example tiles in yellow, blue, and 
 
 Closing tagline at the very bottom, full width, bold script-leaning hand-lettering: 'The bottleneck was never the keyboard.'
 
-Generous white space. No watermarks. No scaffolding words." "03-beat1-throughput-shift-$(date +%Y%m%d-%H%M).png" --input "$YT_REF" --aspect-ratio 16:9
+Generous white space. No watermarks. No scaffolding words." \
+    --out "03-beat1-throughput-shift-$(date +%Y%m%d-%H%M).jpg" \
+    --input "$SKILL_DIR/youtube-baseline-reference.png" --aspect-ratio 16:9 \
+    --expect-text "AGENTS DON'T REPLACE DEVELOPERS,Solo Developer,Agent-Augmented Team,40 hrs / feature,4 hrs / feature,10x the throughput.,Examples,The bottleneck was never the keyboard."
 ```
 
 ## Prompt Construction
@@ -329,11 +335,11 @@ Script-outline files (`script-outline.md`, `concepts.md`, ideal-mechanics.md) ar
 ### Example: Architecture Diagram
 
 ```bash
-# Resolve paths first — use the authoritative-locations loops from the
+# Resolve paths first — resolve the skill directory ($SKILL_DIR, this skill's own folder) from the
 # "Usage" and "Whiteboard Background" sections above. Do NOT `find` across
 # other projects.
 
-python3 "$GEN_IMG" "Draw a hand-sketched technical diagram on this whiteboard using colorful markers. Use a hand-sketched marker style with slightly imperfect lines, hand-drawn arrows with natural curves, and handwritten-looking text in colorful markers. Add small doodles, asterisks, underlines, and emphasis marks like a real whiteboard brainstorming session.
+python3 "$GEN_IMG" --prompt "Draw a hand-sketched technical diagram on this whiteboard using colorful markers. Use a hand-sketched marker style with slightly imperfect lines, hand-drawn arrows with natural curves, and handwritten-looking text in colorful markers. Add small doodles, asterisks, underlines, and emphasis marks like a real whiteboard brainstorming session.
 
 Color markers: blue for channels, orange for orchestration, purple for AI components, green for containers.
 
@@ -341,22 +347,25 @@ Title at top: 'System Architecture'
 
 [... specific boxes, connections, labels ...]
 
-Keep it readable but energetic — like a whiteboard sketch from a team planning session. Keep the whiteboard background texture visible." "output-$(date +%Y%m%d-%H%M).png" --input "$WB" --aspect-ratio 16:9
+Keep it readable but energetic — like a whiteboard sketch from a team planning session. Keep the whiteboard background texture visible." \
+    --out "system-architecture-$(date +%Y%m%d-%H%M).jpg" \
+    --input "$SKILL_DIR/whiteboard-background.png" --aspect-ratio 16:9 \
+    --expect-text "System Architecture,<every box/annotation label>"
 ```
 
 ## Output Location
 
 **CRITICAL: Never overwrite existing images.** Always append a timestamp to the filename so previous versions are preserved.
 
-**Naming format:** `<name>-<YYYYMMDD-HHMM>.png`
+**Naming format:** `<name>-<YYYYMMDD-HHMM>.jpg`
 
 Save images to the current working directory or a subdirectory. Use `docs/` only if it exists and is writable.
 
 Examples:
-- `system-architecture-20260221-1430.png`
-- `ai-tools-comparison-20260221-1445.png`
+- `system-architecture-20260221-1430.jpg`
+- `ai-tools-comparison-20260221-1445.jpg`
 
-Default: `output-<timestamp>.png` in the current working directory.
+Default: `output-<timestamp>.jpg` in the current working directory. (The script also auto-appends a timestamp and refuses to clobber if you forget — but always name outputs explicitly.)
 
 ## Completion
 
@@ -373,11 +382,11 @@ Files page. Never report completion with images missing from the listing.
 2. Construct the prompt using the style guide above
 3. Choose appropriate aspect ratio (default `16:9` for diagrams)
 4. Resolve script and whiteboard background paths (see Usage and Whiteboard Background sections)
-5. Generate output path with timestamp: `<name>-$(date +%Y%m%d-%H%M).png`
+5. Generate output path with timestamp: `<name>-$(date +%Y%m%d-%H%M).jpg`
 6. For whiteboard-style diagrams with background available:
-   `python3 "$GEN_IMG" "<prompt>" "<path>" --input "$WB" -ar <ratio>`
+   `python3 "$GEN_IMG" --prompt "<prompt>" --out "<path>" --aspect-ratio <ratio> --input "$SKILL_DIR/whiteboard-background.png" --expect-text "<labels>"`
    For non-whiteboard images (thumbnails, photos, etc.) or if no background available:
-   `python3 "$GEN_IMG" "<prompt>" "<path>" -ar <ratio>`
+   `python3 "$GEN_IMG" --prompt "<prompt>" --out "<path>" --aspect-ratio <ratio> --expect-text "<labels>"`
 7. Read the generated image to verify quality
 8. If the user wants it linked in docs, update the relevant `.md` file
 
@@ -385,6 +394,6 @@ Files page. Never report completion with images missing from the listing.
 1. Identify the source image to edit (use the most recent timestamped version)
 2. Write a focused prompt describing only the change (not the whole image)
 3. Generate a new output path with timestamp (never overwrite the source)
-4. Run `python3 "$GEN_IMG" "<edit prompt>" "<path>" --input <source-image>`
+4. Run `python3 "$GEN_IMG" --prompt "<edit prompt>" --out "<path>" --input <source-image> --expect-text "<labels>"`
 5. Read the edited image to verify the change was applied
 6. If unsatisfied, iterate with a more specific prompt

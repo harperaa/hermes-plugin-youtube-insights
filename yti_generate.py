@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 try:
-    from . import yti_paths, yti_store
+    from . import yti_fetcher, yti_paths, yti_store
     from .yti_analysis import (
         _kanban,
         _kanban_task_open,
@@ -27,6 +27,7 @@ try:
         resolve_kanban_assignee,
     )
 except ImportError:  # standalone import (dashboard plugin_api path)
+    import yti_fetcher  # type: ignore
     import yti_paths  # type: ignore
     import yti_store  # type: ignore
     from yti_analysis import (  # type: ignore
@@ -100,6 +101,8 @@ def _build_brief(video: dict[str, Any], workspace: Path) -> str:
             f"{transcript_abs}. Run the `youtube-insights:youtube-video-analyst`",
             f"skill on it and save the output to exactly {analysis_abs}. Verify",
             f'with `test -f "{analysis_abs}" && echo VERIFIED`, then continue.',
+            "Do NOT stop after Step 0 because analysis.md now exists — that is",
+            "the expected state; Steps 1-3 are the actual deliverable.",
         ]
     else:
         step0 = [
@@ -115,9 +118,11 @@ def _build_brief(video: dict[str, Any], workspace: Path) -> str:
         "## MANDATORY: Generate similar-but-unique content based on this ONE video.",
         "",
         f"**Source video:** {title}",
-        f"**Channel:** {video.get('channel_handle') or ''}",
+        f"**Channel:** {video.get('channel_name') or ''}"
+        f"{' (' + video['channel_handle'] + ')' if video.get('channel_handle') else ''}",
         f"**Video ID:** {video_id}",
         f"**Video URL:** {url}",
+        f"**Video workspace directory:** {transcript_abs.parent if transcript_abs else '_not yet available_'}",
         f"**Transcript:** {transcript_abs or '_not yet available_'}{' ✓' if transcript_exists else ' (missing)'}",
         f"**Analysis:** {analysis_abs or '_n/a_'}{' ✓' if analysis_exists else ' (missing — Step 0)'}",
         f"**Output directory:** {out_dir}",
@@ -161,6 +166,11 @@ def _build_brief(video: dict[str, Any], workspace: Path) -> str:
         "files under the workspace youtube/ tree appear on the YouTube",
         "Insights Artifacts tab — that is the review surface; leave them in",
         "place.",
+        "",
+        "### CRITICAL RULES",
+        f"- Every output file goes under exactly {out_dir}/ — no alternate paths.",
+        "- Do NOT run a gap-finder workspace sweep over the top-10 — Mode A,",
+        "  this one source video only.",
     ])
 
 
@@ -172,6 +182,14 @@ def create_generation_task(video_id: str) -> dict[str, Any]:
     conn = yti_store.connect()
     try:
         video = yti_store.get_video(conn, video_id)
+        if not video:
+            # Fetched-but-unindexed video (e.g. DB rebuilt): reindex from the
+            # workspace metadata files before giving up.
+            try:
+                yti_fetcher.reindex_from_disk(conn)
+                video = yti_store.get_video(conn, video_id)
+            except Exception:
+                video = None
         if not video:
             return {"error": f"unknown videoId: {video_id}"}
         mapping = _load_map(conn)

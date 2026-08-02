@@ -55,10 +55,12 @@ _CRON_MIGRATED: list = []
 
 
 def _migrate_cron_prompt() -> None:
-    """Upgrade an UNMODIFIED intelligence-refresh cron job to the current
-    default prompt (adds the ideal-mechanics.md consolidation step). Only a
-    byte-exact match on the previous default is upgraded — any mentee edit
-    means no match, and their prompt is never touched. Once per process."""
+    """Upgrade UNMODIFIED scheduled-job prompts to the current defaults
+    (intelligence-refresh: adds the ideal-mechanics.md consolidation step;
+    content-pipeline: aligns file layout with the gap-finder/content-creator
+    skill contract). Only a byte-exact match on a previous default is
+    upgraded — any mentee edit means no match, and their prompt is never
+    touched. Once per process."""
     if _CRON_MIGRATED:
         return
     _CRON_MIGRATED.append(True)
@@ -69,9 +71,15 @@ def _migrate_cron_prompt() -> None:
         mod = _ilu.module_from_spec(spec)
         spec.loader.exec_module(mod)
         from cron import jobs as cron_jobs
-        job = cron_jobs.resolve_job_ref("youtube-intelligence-refresh")
-        if job and (job.get("prompt") or "") == mod.CRON_PROMPT_V1:
-            cron_jobs.update_job(job["id"], {"prompt": mod.CRON_PROMPT})
+        for name, old_prompts, new_prompt in (
+            ("youtube-intelligence-refresh",
+             (mod.CRON_PROMPT_V1,), mod.CRON_PROMPT),
+            ("youtube-content-pipeline",
+             (mod.PIPELINE_PROMPT_V1,), mod.PIPELINE_PROMPT),
+        ):
+            job = cron_jobs.resolve_job_ref(name)
+            if job and (job.get("prompt") or "") in old_prompts:
+                cron_jobs.update_job(job["id"], {"prompt": new_prompt})
     except Exception:
         pass
 

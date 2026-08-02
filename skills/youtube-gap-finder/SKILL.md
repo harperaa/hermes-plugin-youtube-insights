@@ -20,7 +20,7 @@ Find what everyone else is missing — then build video concepts around it.
 - User wants video concepts that won't repeat what's already out there
 - User asks for "net new information gain"
 - User runs `/youtube-gap-finder` with no arguments (default workspace-sweep mode)
-- A CMO delegation issue names a **specific source video** (single-source mode)
+- A kanban task from the Trends page ✨ button names a **specific source video** (single-source mode)
 
 ## Modes
 
@@ -28,16 +28,16 @@ This skill has three modes. **Pick one based on the caller's inputs and do not m
 
 ### Mode A — Single-Source Video (NEW, use when a specific video is named)
 
-Use this mode when the invocation provides a single source video — typically via a CMO-issued delegation from the YouTube Trends page "Generate" button. Signals that you are in this mode:
+Use this mode when the invocation provides a single source video — typically a kanban task created by the YouTube Trends page ✨ Generate button. Signals that you are in this mode:
 
-- The issue or user message names one specific video (title + videoId + URL)
-- The issue provides an explicit transcript path, video workspace directory, and output directory
+- The task brief or user message names one specific video (title + videoId + URL)
+- The task brief provides an explicit transcript path, video workspace directory, and output directory
 - The goal is "similar but unique" content relative to that one source, not a sweep
 
 In this mode:
 
 - You are producing content that is **intentionally similar in topic/angle** to the named source video, but with **net new information gain** (not a rehash).
-- Do NOT run `get-top-videos.py`. Do NOT scan the recommended/ folder for prior runs. Do NOT look at the last completed routine's outputs — you are not picking up where a routine left off.
+- Do NOT call the `yt_trending` tool for a ranking sweep. Do NOT scan the recommended/ folder for prior runs. Do NOT look at the last completed routine's outputs — you are not picking up where a routine left off.
 - Output is **3 concept files in ONE topic folder**, not 9 across 3 topics. Use the output directory the caller provides verbatim (typically `youtube/{today}/recommended/{source-title-slug}/`). Do not invent alternate paths.
 
 ### Mode B — Workspace Sweep (default when invoked with no arguments)
@@ -49,7 +49,7 @@ The legacy default: analyze the top-performing tracked videos across the workspa
 
 ### Mode C — Topic + URLs (ad-hoc)
 
-User provides a topic and/or specific video URLs not yet in the workspace. Fetch transcripts via `youtube-full`, then run the same Phase 2-5 workflow against those videos.
+User provides a topic and/or specific video URLs not yet in the workspace. Transcripts must come through the plugin's own pipeline: track the channel (`yt_add_channel`) and run `yt_fetch_videos` to pull its recent videos + transcripts, then run the same Phase 2-5 workflow. If a URL's video is outside the fetch lookback window or its channel shouldn't be tracked, say so and ask the user how to proceed — there is no ad-hoc transcript fetcher; do not invent one.
 
 ---
 
@@ -59,9 +59,9 @@ User provides a topic and/or specific video URLs not yet in the workspace. Fetch
 
 **Mode A (single source):**
 
-1. **Read the source video's `analysis.md`** from the video workspace directory provided by the caller. The CMO's Step 0 is responsible for making sure this file exists before delegating to you — if it is still missing when your subtask starts, post a comment on the parent issue asking the CMO to complete Step 0 first, then stop. Do NOT run `youtube-video-analyst` yourself (that's the Researcher's skill, orchestrated by the CMO's Step 0) and do NOT substitute a different video.
+1. **Read the source video's `analysis.md`** from the video workspace directory provided by the caller. The task's Step 0 covers this: if `analysis.md` is missing, run the `youtube-insights:youtube-video-analyst` skill yourself against the video's transcript first (it is attached to the task for exactly this case). If no transcript exists on disk either, block the task (`kanban_block` with kind `needs_input`) explaining the transcript is missing — do NOT substitute a different video.
 2. Read ONLY the **Video Summary** and **Top 20 Insights** sections (≈ first 80 lines). Skip the viral-mechanics sections.
-3. Optionally (for corroborating context only): run `python3 get-top-videos.py 10` and skim the **Video Summaries** of any videos in the same theme cluster as the source. Use them to verify that a candidate "gap" is truly a gap vs. already covered elsewhere. Do NOT treat these corroborating videos as co-equal sources — the source of record is the one named video.
+3. Optionally (for corroborating context only): call the `yt_trending` tool (top 10 by VPH) and skim the **Video Summaries** of any videos in the same theme cluster as the source. Use them to verify that a candidate "gap" is truly a gap vs. already covered elsewhere. Do NOT treat these corroborating videos as co-equal sources — the source of record is the one named video.
 4. **Report what you found** to the user, e.g.:
    ```
    Source: "This Tool Made My Coding Agent Powerful" (Brian Casel) — analysis.md loaded (82 lines).
@@ -70,10 +70,9 @@ User provides a topic and/or specific video URLs not yet in the workspace. Fetch
 
 **Mode B (workspace sweep):**
 
-1. **Get top 10 VPH videos** using the ranking script:
-   ```bash
-   python3 get-top-videos.py 10
-   ```
+1. **Get the top 10 VPH videos** by calling the `yt_trending` tool. Each
+   entry includes the video's workspace directory (under the reported
+   `workspaceRoot`); its `analysis.md` lives there.
 2. **For each video**, read ONLY the **Video Summary** and **Top 20 Insights** sections from its `analysis.md` file (≈ first 80 lines). Do NOT read the viral mechanics sections (Section 1-11). These are too large and not needed for gap analysis.
 3. **Skip videos without `analysis.md`** — they don't have enough processed data for gap analysis.
 4. **Report what you found** to the user:
@@ -85,7 +84,7 @@ User provides a topic and/or specific video URLs not yet in the workspace. Fetch
    Skipped 3 (no analysis.md)
    ```
 
-**Mode C (topic + URLs):** fetch transcripts via `youtube-full`, then produce stub analysis (Video Summary + Top 20 Insights) for each URL. Proceed as in Mode B.
+**Mode C (topic + URLs):** get transcripts via the plugin pipeline (`yt_add_channel` + `yt_fetch_videos` — see the Mode C description above), then produce stub analysis (Video Summary + Top 20 Insights) for each video. Proceed as in Mode B.
 
 ### Phase 1.5: Query the Insight Knowledge Base
 
@@ -251,7 +250,7 @@ The `youtube-content-creator` skill will then produce a `script-outline.md` for 
 
 ## Algorithm Context
 
-See `reference/algorithm-context.md` for details on why gap-finding matters:
+Why gap-finding matters:
 
 - **Gist Filter** — YouTube's pre-ranking filter rejects videos too similar to existing content. Gaps = information gain = passing the filter.
 - **Semantic IDs** — The algorithm maps spoken words to knowledge graph nodes. Concepts should use proper entity names, not slang.
@@ -264,13 +263,13 @@ See `reference/algorithm-context.md` for details on why gap-finding matters:
 - **Specificity over abstraction** — use entity names, numbers, company names, study citations. Vague insights have zero information gain.
 - **Respect the mode** — Mode A produces 1 topic × 3 formats; Mode B/C produces 3 topics × 3 formats. Never mix.
 - **Similar-but-unique in Mode A** — the concept is intentionally adjacent to the source video's topic. The differentiation is the gaps/synthesis/contrarian angle, not the topic area.
-- **Do not meander** — if invoked via a CMO delegation that names a specific video and output directory, go straight to that directory and produce the 3 concept files. Do not hunt for prior outputs, do not reconcile with other routines, do not defer work because "a refresh is in progress."
+- **Do not meander** — if invoked via a task brief that names a specific video and output directory, go straight to that directory and produce the 3 concept files. Do not hunt for prior outputs, do not reconcile with other routines, do not defer work because "a refresh is in progress."
 
 ## Integration
 
 | Skill | How it connects |
 |-------|----------------|
-| `youtube-full` | Transcript fetching (for alternate mode) |
+| `yt_add_channel` / `yt_fetch_videos` | Transcript fetching for Mode C (track the channel, then fetch) |
 | `youtube-video-analyst` | Source of analysis.md files used in default mode |
 | `youtube-planner` | Source of workspace video data and VPH rankings |
 | `youtube-content-creator` | Takes concepts.md and produces full video scripts using ideal-mechanics.md |

@@ -21,7 +21,9 @@ import argparse
 import base64
 import json
 import os
+import re
 import sys
+import time
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -205,10 +207,24 @@ def main() -> None:
                     help="Regeneration attempts when QA fails (default 2)")
     args = ap.parse_args()
 
+    # Never clobber previous outputs: if the name carries no -YYYYMMDD-HHMM
+    # stamp, add one; if the path still exists, bump a numeric suffix.
+    out: Path = args.out
+    if not re.search(r"-\d{8}-\d{4}(-\d+)?$", out.stem):
+        stamp = time.strftime("%Y%m%d-%H%M")
+        out = out.with_name(f"{out.stem}-{stamp}{out.suffix}")
+    bump = 1
+    while out.exists():
+        bump += 1
+        base = re.sub(r"-\d+$", "", out.stem) if bump > 2 else out.stem
+        out = out.with_name(f"{base}-{bump}{out.suffix}")
+    if out != args.out:
+        print(f"output path adjusted to avoid overwrite: {out}")
+
     attempt = 0
     prompt = args.prompt
     while True:
-        written = generate(prompt, args.out, args.n, args.model,
+        written = generate(prompt, out, args.n, args.model,
                            aspect_ratio=args.aspect_ratio,
                            input_image=args.input_image)
         if args.no_verify:
