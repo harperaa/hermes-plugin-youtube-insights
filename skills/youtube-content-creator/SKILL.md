@@ -430,7 +430,11 @@ const path = require('path');
 // True 16:9 page size (1920x1080 scaled to PDF points)
 const pageW = 1920 * 0.5;  // 960pt
 const pageH = 1080 * 0.5;  // 540pt
-const doc = new PDFDocument({ layout: 'landscape', size: [pageH, pageW], margin: 0 });
+// EXPLICIT [width, height] — pdfkit does NOT swap explicit array sizes for
+// layout:'landscape', so naming the layout with [pageH, pageW] silently
+// produces PORTRAIT pages (observed 540x960). Never pass a layout option
+// with an array size; state the landscape geometry directly.
+const doc = new PDFDocument({ size: [pageW, pageH], margin: 0 });
 const assetsDir = 'ASSETS_DIR_PATH';
 const outputPath = path.join(assetsDir, '..', 'beat-visuals.pdf');
 doc.pipe(fs.createWriteStream(outputPath));
@@ -449,11 +453,12 @@ const pages = [
 // pageW and pageH already defined above (960x540, true 16:9)
 
 pages.forEach((file, i) => {
-  if (i > 0) doc.addPage();
+  if (i > 0) doc.addPage({ size: [pageW, pageH], margin: 0 }); // repeat size — addPage defaults would reset it
   const imgPath = path.join(assetsDir, file);
   if (!fs.existsSync(imgPath)) { console.error('Missing:', imgPath); return; }
   // Full-bleed image, no margins or labels
-  doc.image(imgPath, 0, 0, { width: pageW, height: pageH });
+  // Full-bleed, aspect-preserving: 16:9 sources fill the 16:9 page exactly.
+  doc.image(imgPath, 0, 0, { fit: [pageW, pageH], align: 'center', valign: 'center' });
 });
 
 doc.end();
@@ -462,6 +467,14 @@ console.log('PDF saved to:', outputPath);
 ```
 
 **Customize the `pages` array** with the actual filenames (including timestamps) and beat labels from the script.
+
+**VERIFY the geometry before attaching (hard gate):** every page must be landscape 960x540 with the image bleeding to the edges. Check:
+
+```bash
+python3 -c "import re,sys; d=open('OUTPUT_PDF','rb').read(); boxes=set(re.findall(rb'MediaBox\\s*\\[([^\\]]+)\\]', d)); print(boxes); sys.exit(0 if all(b.split()==[b'0',b'0',b'960',b'540'] for b in boxes) else 1)"
+```
+
+If any MediaBox is not `0 0 960 540`, the deck is portrait or bordered — regenerate with the exact script above before attaching or completing.
 
 **Output:** Named after the video title in kebab-case (e.g., `openclaw-is-a-security-nightmare.pdf`), saved in the topic slug directory (same level as `script-outline.md` and `assets/`). Extract the title from the `# [VIDEO TITLE]` heading in `script-outline.md`.
 
