@@ -36,12 +36,15 @@ In Mode B:
    The `{YYYY-MM-DD}` is today's date.
 3. **Save the provided script verbatim** to `.../script-outline.md` inside that folder. If the user inlined the script in an issue description or comment, copy the text to that file with minimal reformatting (preserve beat headings `**Beat N**`, lists, etc.).
 4. **Extract the `Visual` field per beat** if the script has them. If the user's script does NOT have explicit Visual fields, synthesize a one-line visual description per beat from the beat's prose — describe what a sketchnote-on-paper diagram for that beat would show (per the YouTube baseline reference style). Write these as a short `visual-plan.md` inside the folder so the Graphics Creator has reviewable prompts to feed into `generate-image`.
-5. **Delegate Phase 6 + Phase 6b to the Graphics Creator.** Create ONE subtask on the parent issue, assigned to the Graphics Creator agent (`role === "designer"`). The subtask description MUST include:
-   - The exact output folder path.
-   - The `script-outline.md` and `visual-plan.md` paths.
-   - Explicit instructions: "Run Phase 6 (images via the `generate-image` skill, 1 per beat + 3 thumbnails) and Phase 6b (production PDF) from the `youtube-content-creator` skill. Save images to `assets/`. Produce the PDF at `<title-slug>.pdf`. Attach all outputs to the parent issue under a single 'Graphics' comment. Do NOT substitute PIL/canvas/ImageMagick — refer to the `generate-image` skill's Absolute Rules."
-6. **Wait for the Graphics Creator subtask to complete.** Set this issue's status to `blocked` with `blockedByIssueIds=[<subtask-id>]` so the CMO-style wake-on-children-done resumes you.
-7. **When woken, report** — post a final summary comment on THIS issue with: the saved script path, the Graphics Creator subtask identifier, the image count, the PDF attachment. Mark the issue done.
+5. **Run Phase 6 + Phase 6b yourself, in this session.** There is no
+   separate graphics agent in this deployment. Generate every beat image and
+   the thumbnails per Phase 6 (via the `generate-image` skill, baseline
+   `--input` anchor for beats), then build the production PDF per Phase 6b.
+   Save images under `assets/`; the PDF is named `<title-slug>.pdf` beside
+   the script.
+6. **Publish**: attach the PDF and thumbnails to the kanban task you are
+   working (`kanban_attach`), leave all files in place for the Artifacts
+   tab, and complete the task with a summary listing every file.
 
 **You (the delegating agent) MUST NOT:**
 - Run the image script yourself when no xAI credential resolves in your environment (env `XAI_API_KEY` or the hermes `xai-oauth` login).

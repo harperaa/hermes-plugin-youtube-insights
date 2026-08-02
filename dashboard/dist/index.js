@@ -766,7 +766,7 @@
   function TreeEntry(props) {
     var node = props.node;
     var depth = props.depth || 0;
-    var openState = useState(depth < 2);
+    var openState = useState(depth < 2 || !!props.forceOpen);
     var open = openState[0], setOpen = openState[1];
     if (node.kind === "dir") {
       return h("div", { className: "yti-tree-dir" },
@@ -780,6 +780,7 @@
         ),
         open ? (node.children || []).map(function (c) {
           return h(TreeEntry, { key: c.relPath, node: c, depth: depth + 1,
+                                forceOpen: props.forceOpen,
                                 selected: props.selected, onSelect: props.onSelect });
         }) : null
       );
@@ -1055,12 +1056,26 @@
       return out;
     }
     var query = q.trim().toLowerCase();
-    var results = query && tree
-      ? flattenFiles(tree, []).filter(function (n) {
-          if (n.relPath.toLowerCase().indexOf(query) === -1) return false;
-          if (withImages && IMG_EXTS.indexOf(n.ext) === -1) return false;
-          return true;
-        })
+    function filterByQuery(nodes) {
+      var out = [];
+      nodes.forEach(function (n) {
+        var nameHit = n.name.toLowerCase().indexOf(query) !== -1;
+        if (n.kind === "file") {
+          if (nameHit && (!withImages || IMG_EXTS.indexOf(n.ext) !== -1)) out.push(n);
+          return;
+        }
+        if (nameHit) { out.push(n); return; } // folder-name match: whole folder
+        var kids = filterByQuery(n.children || []);
+        if (kids.length) out.push(Object.assign({}, n, { children: kids }));
+      });
+      return out;
+    }
+    var filteredTree = tree
+      ? (function () {
+          var t = withImages && !query ? pruneToImages(tree) : tree;
+          if (query) t = filterByQuery(withImages ? pruneToImages(t) : t);
+          return t;
+        })()
       : null;
 
     return h("div", { className: "yti-artifacts" },
@@ -1092,24 +1107,15 @@
               }, sortDesc ? "Newest first ↓" : "Oldest first ↑"))
           ),
           tree == null ? h("div", { className: "yti-empty" }, "Loading…")
-          : results !== null
-            ? (results.length === 0
-                ? h("div", { className: "yti-empty" }, "No files match \u201C" + q + "\u201D.")
-                : results.map(function (n) {
-                    return h("button", {
-                      key: n.relPath,
-                      className: "yti-tree-file yti-search-hit" +
-                        (sel && sel.relPath === n.relPath ? " yti-tree-active" : ""),
-                      onClick: function () { setSel(n); },
-                      title: n.relPath,
-                    }, n.relPath);
-                  }))
+          : query && filteredTree.length === 0
+            ? h("div", { className: "yti-empty" }, "No files match \u201C" + q + "\u201D.")
           : tree.length === 0
             ? h("div", { className: "yti-empty" },
                 "No deliverables yet. The scheduled pipeline writes concepts and ",
                 "scripts to ", h("code", null, "youtube/{date}/recommended/"), ".")
-            : sortTree(withImages ? pruneToImages(tree) : tree).map(function (n) {
-                return h(TreeEntry, { key: n.relPath, node: n, depth: 0,
+            : sortTree(filteredTree).map(function (n) {
+                return h(TreeEntry, { key: (query ? "q-" + query + "-" : "") + n.relPath,
+                  node: n, depth: 0, forceOpen: !!query,
                   selected: sel && sel.relPath,
                   onSelect: function (node) { setSel(node); } });
               })
