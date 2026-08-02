@@ -51,8 +51,34 @@ def _transcript_api_key() -> str:
     return ""
 
 
+_CRON_MIGRATED: list = []
+
+
+def _migrate_cron_prompt() -> None:
+    """Upgrade an UNMODIFIED intelligence-refresh cron job to the current
+    default prompt (adds the ideal-mechanics.md consolidation step). Only a
+    byte-exact match on the previous default is upgraded — any mentee edit
+    means no match, and their prompt is never touched. Once per process."""
+    if _CRON_MIGRATED:
+        return
+    _CRON_MIGRATED.append(True)
+    try:
+        import importlib.util as _ilu
+        spec = _ilu.spec_from_file_location(
+            "yti_cli_mod", str(Path(_PLUGIN_ROOT) / "cli.py"))
+        mod = _ilu.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        from cron import jobs as cron_jobs
+        job = cron_jobs.resolve_job_ref("youtube-intelligence-refresh")
+        if job and (job.get("prompt") or "") == mod.CRON_PROMPT_V1:
+            cron_jobs.update_job(job["id"], {"prompt": mod.CRON_PROMPT})
+    except Exception:
+        pass
+
+
 @router.get("/videos")
 def get_videos() -> dict[str, Any]:
+    _migrate_cron_prompt()
     conn = yti_store.connect()
     try:
         videos = yti_fetcher.trends_from_db(conn)
@@ -119,6 +145,25 @@ def post_generate_content(body: GenerateBody) -> dict[str, Any]:
     if result.get("error"):
         raise HTTPException(status_code=400, detail=result["error"])
     return result
+
+
+class ProduceBody(BaseModel):
+    path: str
+
+
+@router.post("/produce")
+def post_produce(body: ProduceBody) -> dict[str, Any]:
+    """Artifacts tab Produce button: images + thumbnails + production PDF
+    for one approved script (content-creator Mode B, Phase 6 + 6b)."""
+    result = yti_generate.create_produce_task(body.path)
+    if result.get("error"):
+        raise HTTPException(status_code=400, detail=result["error"])
+    return result
+
+
+@router.get("/produce-states")
+def get_produce_states() -> dict[str, Any]:
+    return {"states": yti_generate.produce_states()}
 
 
 @router.post("/fetch")

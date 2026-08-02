@@ -8,7 +8,10 @@ import sys
 
 CRON_NAME = "youtube-intelligence-refresh"
 CRON_SCHEDULE = "0 3 * * *"
-CRON_PROMPT = (
+# Prior default prompt — kept VERBATIM so the dashboard's prompt migrator can
+# recognize an unmodified job and upgrade it; a mentee-customized prompt never
+# matches and is never touched.
+CRON_PROMPT_V1 = (
     "Run the YouTube intelligence refresh. Step 1: call the yt_fetch_videos "
     "tool to pull the latest videos and transcripts for all tracked channels. "
     "Step 2: call yt_trigger_analysis (default limit and ordering). Each "
@@ -20,6 +23,36 @@ CRON_PROMPT = (
     "next daily window. Step 3: finish with a one-paragraph summary of "
     "videos fetched, Shorts skipped, and the analysis tasks queued (include "
     "each kanbanTaskId from the yt_trigger_analysis result)."
+)
+
+CRON_PROMPT = (
+    "Run the YouTube intelligence refresh. Step 1: call the yt_fetch_videos "
+    "tool to pull the latest videos and transcripts for all tracked channels. "
+    "Step 2: call yt_trigger_analysis (default limit and ordering). Each "
+    "queued analysis is opened as its own kanban task titled 'Analyze: "
+    "<video>' which the gateway dispatcher works in a separate session — do "
+    "NOT analyze any video inline in this session and do NOT load the "
+    "analyst skill here. Do NOT raise the analysis limit to catch up a "
+    "backlog — the cap is deliberate pacing; the long tail defers to the "
+    "next daily window. Step 3: regenerate the viral-mechanics playbook at "
+    "youtube/ideal-mechanics.md under the workspace directory reported by "
+    "yt_trending (workspaceRoot): take the CURRENT top 5 videos by VPH from "
+    "yt_trending, read each one's analysis.md (its viral-mechanics sections "
+    "and Top 20 Insights), and consolidate them into one playbook titled "
+    "'Ideal Viral Mechanics — Consolidated from Top 5 VPH Videos'. Structure "
+    "it exactly as: a 'Sources (ranked by VPH)' list, then sections 1. Hook "
+    "Architecture, 2. Structural Blueprint, 3. Retention Mechanics, "
+    "4. Emotional Engineering, 5. Storytelling Elements, 6. Linguistic "
+    "Patterns, 7. Algorithm Signals, 8. CTA Architecture, 9. Viral "
+    "Coefficient, 10. Reusable Templates, 11. Implementation Playbook, and a "
+    "closing 'Quick Reference: The Meta-Pattern'. Cite the source video "
+    "(V1–V5 with its VPH) for every example. If fewer than 3 of the top "
+    "videos have an analysis.md yet, skip this step and note why. The "
+    "youtube-content-creator skill reads this exact path — do not rename it. "
+    "Step 4: finish with a one-paragraph summary of videos fetched, Shorts "
+    "skipped, the analysis tasks queued (include each kanbanTaskId from the "
+    "yt_trigger_analysis result), and whether ideal-mechanics.md was "
+    "regenerated."
 )
 
 # Second routine, ported from paperclip's "YouTube Content Pipeline"

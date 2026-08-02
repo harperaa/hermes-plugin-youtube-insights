@@ -686,6 +686,11 @@
     while (i < lines.length) {
       var line = lines[i];
       if (!line.trim()) { i++; continue; }
+      if (/^\s*(-{3,}|\*{3,})\s*$/.test(line)) {
+        blocks.push(h("hr", { key: "k" + key++, className: "yti-md-hr" }));
+        i++;
+        continue;
+      }
       var hm = /^(#{1,6})\s+(.*)$/.exec(line);
       if (hm) {
         blocks.push(h("h" + Math.min(6, hm[1].length + 1), { key: "k" + key++ },
@@ -804,16 +809,39 @@
     var busy = busyState[0], setBusy = busyState[1];
     var pdfUrlState = useState(null);
     var pdfUrl = pdfUrlState[0], setPdfUrl = pdfUrlState[1];
+    var qState = useState("");
+    var q = qState[0], setQ = qState[1];
+    var imgState = useState(false);
+    var withImages = imgState[0], setWithImages = imgState[1];
+    var sortState = useState(true); // newest-first by default
+    var sortDesc = sortState[0], setSortDesc = sortState[1];
+    var prodState = useState({});
+    var produce = prodState[0], setProduce = prodState[1];
+    var copiedState = useState("");
+    var copied = copiedState[0], setCopied = copiedState[1];
 
     var loadTree = useCallback(function () {
       api("/workspace/tree").then(function (d) { setTree(d.tree || []); })
         .catch(function () { setTree([]); });
+      api("/produce-states").then(function (d) { setProduce((d && d.states) || {}); })
+        .catch(function () {});
     }, []);
     useEffect(function () { loadTree(); }, [loadTree]);
+
+    // Poll while any produce run is open so the spinner resolves on its own.
+    var hasOpenProduce = Object.keys(produce).some(function (k) {
+      return produce[k] && produce[k].status === "open";
+    });
+    useEffect(function () {
+      if (!hasOpenProduce) return undefined;
+      var id = window.setInterval(loadTree, 15000);
+      return function () { window.clearInterval(id); };
+    }, [hasOpenProduce, loadTree]);
 
     useEffect(function () {
       setEditing(null);
       setFile(null);
+      setCopied("");
       if (pdfUrl) { URL.revokeObjectURL(pdfUrl); setPdfUrl(null); }
       if (!sel) return;
       if (sel.ext === ".pdf") {
@@ -853,6 +881,54 @@
       });
     }
 
+    function copyMarkdown() {
+      if (!file || file.kind !== "text") return;
+      navigator.clipboard.writeText(file.text || "").then(function () {
+        setCopied("md"); window.setTimeout(function () { setCopied(""); }, 1500);
+      }).catch(function () { alert("Clipboard unavailable"); });
+    }
+
+    function copyRich() {
+      if (!file || file.kind !== "text") return;
+      var el = document.querySelector(".yti-md-rendered");
+      var html = el ? el.innerHTML : "";
+      var write = (window.ClipboardItem && html)
+        ? navigator.clipboard.write([new window.ClipboardItem({
+            "text/html": new Blob([html], { type: "text/html" }),
+            "text/plain": new Blob([file.text || ""], { type: "text/plain" }),
+          })])
+        : navigator.clipboard.writeText(file.text || "");
+      write.then(function () {
+        setCopied("rich"); window.setTimeout(function () { setCopied(""); }, 1500);
+      }).catch(function () { alert("Clipboard unavailable"); });
+    }
+
+    function produceScript() {
+      if (!sel) return;
+      api("/produce", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path: sel.relPath }),
+      }).then(function () { loadTree(); })
+        .catch(function (e) { alert(String((e && e.message) || e)); });
+    }
+
+    function flattenFiles(nodes, out) {
+      nodes.forEach(function (n) {
+        if (n.kind === "file") out.push(n);
+        if (n.children) flattenFiles(n.children, out);
+      });
+      return out;
+    }
+
+    function formatMtime(iso) {
+      try {
+        var d = new Date(iso);
+        return "last modified " + d.toLocaleDateString(undefined, { month: "short", day: "numeric" }) +
+          ", " + d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+      } catch (e) { return ""; }
+    }
+
     var preview;
     if (!sel) {
       preview = h("div", { className: "yti-empty" },
@@ -875,12 +951,13 @@
         alt: sel.name,
       });
     } else if (file.kind === "text" && sel.ext === ".md") {
+      // Markdown previews rendered by default (paperclip deliverables parity)
       preview = editing != null
         ? h("textarea", {
             className: "yti-md-editor", value: editing,
             onChange: function (e) { setEditing(e.target.value); },
           })
-        : renderMarkdown(file.text);
+        : h("div", { className: "yti-md yti-md-rendered" }, renderMarkdown(file.text));
     } else if (file.kind === "text") {
       preview = editing != null
         ? h("textarea", {
@@ -894,36 +971,125 @@
 
     var canEdit = sel && file && file.kind === "text" &&
       [".md", ".txt", ".json", ".yml", ".yaml", ".csv"].indexOf(sel.ext) >= 0;
+    var isScript = sel && sel.ext === ".md" && /script/i.test(sel.name);
+    var prod = sel && produce[sel.relPath];
+    var prodOpen = !!prod && prod.status === "open";
+    var prodChat = prod && prod.sessionId
+      ? "/chat?resume=" + encodeURIComponent(prod.sessionId) : null;
+    var prodTask = prod && prod.taskId
+      ? "/kanban#task=" + encodeURIComponent(prod.taskId) : null;
+
+    // Preview header (paperclip deliverables parity): path · mtime · actions
+    var previewHead = sel ? h("div", { className: "yti-preview-head" },
+      h("code", { className: "yti-preview-path" }, sel.relPath),
+      h("span", { className: "yti-preview-actions" },
+        (file && file.mtime) ? h("span", { className: "yti-mtime" }, formatMtime(file.mtime)) : null,
+        isScript ? h(Button, {
+          size: "sm",
+          disabled: prodOpen,
+          title: prodOpen
+            ? "Producing — images, thumbnails, and PDF are being generated"
+            : "Generate all beat images, 3 thumbnails, and the production PDF into this script's assets folder",
+          onClick: produceScript,
+          className: "yti-produce-btn",
+        }, prodOpen ? "Producing…" : "Produce ✨") : null,
+        prodChat ? h("a", { className: "yti-gen-link", href: prodChat,
+          onClick: function (e) { e.preventDefault(); window.location.assign(prodChat); } }, "chat ↗") : null,
+        prodTask ? h("a", { className: "yti-gen-link", href: prodTask,
+          onClick: function (e) { e.preventDefault(); window.location.assign(prodTask); } }, "task ↗") : null,
+        canEdit ? (editing != null
+          ? [h(Button, { key: "save", size: "sm", disabled: busy, onClick: save }, busy ? "Saving…" : "Save"),
+             h(Button, { key: "cancel", size: "sm", variant: "outline",
+               onClick: function () { setEditing(null); } }, "Cancel")]
+          : h(Button, { size: "sm", variant: "outline",
+              onClick: function () { setEditing(file && file.text || ""); } }, "Edit")) : null,
+        (file && file.kind === "text")
+          ? h(Button, { size: "sm", variant: "outline", onClick: copyMarkdown },
+              copied === "md" ? "Copied!" : "Copy Markdown") : null,
+        (file && file.kind === "text" && sel.ext === ".md")
+          ? h(Button, { size: "sm", variant: "outline", onClick: copyRich },
+              copied === "rich" ? "Copied!" : "Copy Rich") : null
+      )
+    ) : null;
+
+    // Recursive sort: directories first, then names — descending by default
+    // so date-named folders (YYYY-MM-DD) put the newest work on top.
+    function sortTree(nodes) {
+      var copy = nodes.slice().map(function (n) {
+        return n.children ? Object.assign({}, n, { children: sortTree(n.children) }) : n;
+      });
+      copy.sort(function (a, b) {
+        if ((a.kind === "dir") !== (b.kind === "dir")) return a.kind === "dir" ? -1 : 1;
+        var cmp = a.name.toLowerCase() < b.name.toLowerCase() ? -1
+          : a.name.toLowerCase() > b.name.toLowerCase() ? 1 : 0;
+        return sortDesc && a.kind === "dir" && b.kind === "dir" ? -cmp : cmp;
+      });
+      return copy;
+    }
+
+    var IMG_EXTS = [".png", ".jpg", ".jpeg", ".webp", ".gif"];
+    var query = q.trim().toLowerCase();
+    var results = (query || withImages) && tree
+      ? flattenFiles(tree, []).filter(function (n) {
+          if (query && n.relPath.toLowerCase().indexOf(query) === -1) return false;
+          if (withImages && IMG_EXTS.indexOf(n.ext) === -1) return false;
+          return true;
+        })
+      : null;
 
     return h("div", { className: "yti-artifacts" },
       h("div", { className: "yti-artifacts-head" },
         h("h2", null, "Workspace Deliverables"),
         h("div", { className: "yti-actions" },
-          canEdit ? (editing != null
-            ? [h(Button, { key: "save", size: "sm", disabled: busy, onClick: save },
-                busy ? "Saving…" : "Save"),
-               h(Button, { key: "cancel", size: "sm", variant: "outline",
-                 onClick: function () { setEditing(null); } }, "Cancel")]
-            : h(Button, { size: "sm", variant: "outline",
-                onClick: function () { setEditing(file.text || ""); } }, "Edit")) : null,
           h(Button, { size: "sm", variant: "outline", onClick: loadTree }, "Refresh")
         )
       ),
       h("div", { className: "yti-artifacts-body" },
         h("div", { className: "yti-tree" },
+          h("div", { className: "yti-tree-tools" },
+            h("input", {
+              className: "yti-artifact-search",
+              placeholder: "Search filenames…",
+              value: q,
+              onChange: function (e) { setQ(e.target.value); },
+            }),
+            h("div", { className: "yti-tree-chips" },
+              h("button", {
+                className: "yti-filter-chip" + (withImages ? " yti-filter-chip-on" : ""),
+                onClick: function () { setWithImages(!withImages); },
+                title: "Show only image files (generated assets and thumbnails)",
+              }, "With Images"),
+              h("button", {
+                className: "yti-filter-chip",
+                onClick: function () { setSortDesc(!sortDesc); },
+                title: "Toggle directory sort order",
+              }, sortDesc ? "Newest first ↓" : "Oldest first ↑"))
+          ),
           tree == null ? h("div", { className: "yti-empty" }, "Loading…")
+          : results !== null
+            ? (results.length === 0
+                ? h("div", { className: "yti-empty" }, "No files match \u201C" + q + "\u201D.")
+                : results.map(function (n) {
+                    return h("button", {
+                      key: n.relPath,
+                      className: "yti-tree-file yti-search-hit" +
+                        (sel && sel.relPath === n.relPath ? " yti-tree-active" : ""),
+                      onClick: function () { setSel(n); },
+                      title: n.relPath,
+                    }, n.relPath);
+                  }))
           : tree.length === 0
             ? h("div", { className: "yti-empty" },
                 "No deliverables yet. The scheduled pipeline writes concepts and ",
                 "scripts to ", h("code", null, "youtube/{date}/recommended/"), ".")
-            : tree.map(function (n) {
+            : sortTree(tree).map(function (n) {
                 return h(TreeEntry, { key: n.relPath, node: n, depth: 0,
                   selected: sel && sel.relPath,
                   onSelect: function (node) { setSel(node); } });
               })
         ),
         h("div", { className: "yti-preview" },
-          sel ? h("div", { className: "yti-preview-path" }, sel.relPath) : null,
+          previewHead,
           preview)
       )
     );
