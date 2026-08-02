@@ -11,7 +11,7 @@ Turn a video concept into a record-from script with exact spoken lines for every
 
 * User says "create the video", "write the script", "produce the video", "build the script" → **Mode A**
 * User runs `/youtube-content-creator` with a path to a concepts.md file or a topic slug → **Mode A**
-* User provides a finished script (inline in the issue body, or a path to an existing `script-outline.md`) and asks for images/thumbnails/PDF → **Mode B**
+* User provides a finished script (inline in the task description, or a path to an existing `script-outline.md`) and asks for images/thumbnails/PDF → **Mode B**
 * User says "just the images and PDF", "skip the script writing, use this script", "transform this transcript to images", or similar → **Mode B**
 
 ## Modes
@@ -24,7 +24,7 @@ Default flow when the caller points to `concepts.md` (or siblings) or asks for a
 
 ### Mode B — User-Provided Script → Images → PDF
 
-Use this mode when the caller supplies a finished script — either the full text inline (in the issue description or a chat message) or a path to a pre-existing `script-outline*.md`. **Image generation (Phase 6) and PDF production (Phase 6b) are always the Graphics Creator's job.** The current agent (usually the CMO responding to a manual ticket, or the Content Creator running this skill) does the script-saving and delegation but does NOT run the images or PDF itself.
+Use this mode when the caller supplies a finished script — either the full text inline (in the task description or a chat message) or a path to a pre-existing `script-outline*.md`. **You run everything in this session** — script-saving, Phase 6 image generation, and Phase 6b PDF production. There is no separate graphics agent in this deployment.
 
 In Mode B:
 
@@ -34,8 +34,8 @@ In Mode B:
    <workspace>/youtube/{YYYY-MM-DD}/recommended/{topic-slug}/
    ```
    The `{YYYY-MM-DD}` is today's date.
-3. **Save the provided script verbatim** to `.../script-outline.md` inside that folder. If the user inlined the script in an issue description or comment, copy the text to that file with minimal reformatting (preserve beat headings `**Beat N**`, lists, etc.).
-4. **Extract the `Visual` field per beat** if the script has them. If the user's script does NOT have explicit Visual fields, synthesize a one-line visual description per beat from the beat's prose — describe what a sketchnote-on-paper diagram for that beat would show (per the YouTube baseline reference style). Write these as a short `visual-plan.md` inside the folder so the Graphics Creator has reviewable prompts to feed into `generate-image`.
+3. **Save the provided script verbatim** to `.../script-outline.md` inside that folder. If the user inlined the script in the task description or a comment, copy the text to that file with minimal reformatting (preserve beat headings `**Beat N**`, lists, etc.).
+4. **Extract the `Visual` field per beat** if the script has them. If the user's script does NOT have explicit Visual fields, synthesize a one-line visual description per beat from the beat's prose — describe what a sketchnote-on-paper diagram for that beat would show (per the YouTube baseline reference style). Write these as a short `visual-plan.md` inside the folder so the graphics stage has reviewable prompts to feed into `generate-image`.
 5. **Run Phase 6 + Phase 6b yourself, in this session.** There is no
    separate graphics agent in this deployment. Generate every beat image and
    the thumbnails per Phase 6 (via the `generate-image` skill, baseline
@@ -46,16 +46,15 @@ In Mode B:
    working (`kanban_attach`), leave all files in place for the Artifacts
    tab, and complete the task with a summary listing every file.
 
-**You (the delegating agent) MUST NOT:**
+**You MUST NOT:**
 - Run the image script yourself when no xAI credential resolves in your environment (env `XAI_API_KEY` or the hermes `xai-oauth` login).
 - Write a Python/Node fallback that uses PIL, matplotlib, canvas, ImageMagick, etc. — text cards are not images.
 - Harvest an API key from a sibling project's `.env` — cross-project key leakage is prohibited.
 
 Mode B inputs checklist (verify before starting):
-- [ ] Full script text (inline in issue body or `script-outline.md` path)
+- [ ] Full script text (inline in the task description or `script-outline.md` path)
 - [ ] Video title (for topic slug and thumbnails)
 - [ ] Output folder (usually auto-derived)
-- [ ] Graphics Creator agent exists on this company — if not, STOP and block; the pipeline needs that agent.
 
 ## Inputs
 
@@ -383,7 +382,7 @@ assets/
 
 1. **Use the `/generate-image` skill** (invoke it via the Skill tool). For beat visuals, follow its **"YouTube Beat Visual Style"** section — NOT the whiteboard architecture-diagram style. The two styles are not interchangeable.
 2. **Anchor every beat image to the baseline reference BOTH ways — as the source image AND by verification.** (a) Pass the baseline as the starting image on every beat generation: `--input "<generate-image skill dir>/youtube-baseline-reference.png"` — this routes through xAI's `images/edits` (image-to-image), so the sketchnote composition and palette are inherited from the source image, not just described in the prompt. (b) STILL verify: compare every generated beat image against `youtube-baseline-reference.png` (bundled in this skill's directory and in the `generate-image` skill's directory); if the output drifts, regenerate with a prompt that re-cites the missing element. If the reference file is missing, stop and report — do NOT fall back to the whiteboard style and do NOT generate without the `--input` anchor.
-3. **Match the sketchnote-on-paper style exactly**: cream/off-white paper background, faint pencil grid, pastel corner scribbles, thin black hand-drawn frame with corner brackets. Muted pastel palette only (pale sky blue, pale mint green, buttercream yellow, dusty coral, manila tan) with charcoal black linework. Stick figures with simple expressive faces, cloud-shaped thought bubbles with dotted leaders, manila price tags with punched holes and dotted strings, and (for comparison beats) a single bold cross-hatched block arrow in the center. **No bright marker colors. No whiteboard look.** See `generate-image.md` for the full spec and style preamble.
+3. **Match the sketchnote-on-paper style exactly**: cream/off-white paper background, faint pencil grid, pastel corner scribbles, thin black hand-drawn frame with corner brackets. Muted pastel palette only (pale sky blue, pale mint green, buttercream yellow, dusty coral, manila tan) with charcoal black linework. Stick figures with simple expressive faces, cloud-shaped thought bubbles with dotted leaders, manila price tags with punched holes and dotted strings, and (for comparison beats) a single bold cross-hatched block arrow in the center. **No bright marker colors. No whiteboard look.** See the `generate-image` skill's SKILL.md for the full spec and style preamble.
 4. **One image per beat.** Every beat in the script gets exactly one diagram. The `Visual` field in the beat describes what to generate.
 5. **Three thumbnail options.** Generate from the `Thumbnail Options` in Production Notes. Thumbnails should be bold, high-contrast, readable at small sizes — YouTube thumbnail style, not sketchnote style. Do NOT pass the YouTube baseline reference for thumbnails.
 6. **16:9 aspect ratio** for all beat images. Thumbnails also 16:9.
@@ -409,7 +408,7 @@ C. assets/thumb-c-[desc].png
 
 After all images are generated and verified, create a landscape PDF with one image per page. This gives the creator a single file to review, print, or share with collaborators.
 
-**CRITICAL — this PDF MUST be produced by the `sharp` + `pdfkit` Node script below.** Do NOT substitute the gstack `make-pdf` skill, Playwright / Puppeteer / headless-Chrome print-to-PDF, `wkhtmltopdf`, LaTeX, ImageMagick, or any other PDF tool or renderer. The gstack `make-pdf` skill renders markdown documents and is **not** the authorized path for this full-bleed beat-image deck. If `sharp`/`pdfkit` cannot be installed in this environment, **STOP this phase and report the block** on the parent issue, naming the exact failure (e.g. `npm install pdfkit` failed) — do NOT work around it with another renderer. Block if blocked; never swap in a different PDF tool than the one specified here. This is the same hard rule as Phase 6's image guard.
+**CRITICAL — this PDF MUST be produced by the `sharp` + `pdfkit` Node script below.** Do NOT substitute the gstack `make-pdf` skill, Playwright / Puppeteer / headless-Chrome print-to-PDF, `wkhtmltopdf`, LaTeX, ImageMagick, or any other PDF tool or renderer. The gstack `make-pdf` skill renders markdown documents and is **not** the authorized path for this full-bleed beat-image deck. If `sharp`/`pdfkit` cannot be installed in this environment, **STOP this phase and report the block** on the kanban task (comment + block), naming the exact failure (e.g. `npm install pdfkit` failed) — do NOT work around it with another renderer. Block if blocked; never swap in a different PDF tool than the one specified here. This is the same hard rule as Phase 6's image guard.
 
 **PDF structure:**
 
@@ -489,27 +488,33 @@ dashboard, the Files page, and the review summary all point at. This phase is
 a hard completion gate: do NOT report the task complete until every
 deliverable exists on disk in the right place.
 
-### Required layout
+### Required layout (matches Phase 5's outputs exactly)
 
 ```
 youtube/{date}/recommended/{topic-slug}/
-  concept.md                  # from youtube-gap-finder
-  scripts/
-    script-outline.md         # primary long-form outline
-    script-outline-listicle.md
-    script-outline-story.md   # (one file per format produced)
-  assets/                     # only after the graphics stage has run
+  concepts.md                     # from youtube-gap-finder (plus
+  concepts-hot-take.md            #  the hot-take / contrarian
+  concepts-contrarian.md          #  variants when produced)
+  script-outline.md               # one per concept format produced
+  script-outline-hot-take.md
+  script-outline-contrarian.md
+  assets/                         # only after the graphics stage has run
     01-hook-*.png ... thumb-{a,b,c}-*.png
-  beat-visuals.pdf            # only after Phase 6b has run
+  *.pdf                           # only after Phase 6b has run (named
+                                  #  <title-slug>.pdf, beside the script)
 ```
+
+Scripts and concepts live at the topic-slug ROOT (never a `scripts/`
+subdirectory), exactly as Phase 5 saved them.
 
 ### Completion checklist (verify before your final summary)
 
 Before you write the final summary, verify ALL of the following. If ANY line
 is a no, you're not done — go back and fix it.
 
-- [ ] Every script format exists under `scripts/` and every beat line is an exact spoken line (spot-check by reading the files back).
-- [ ] If the graphics stage ran: every image in `assets/` exists and the PDF exists at the topic-slug root.
+- [ ] Every script format exists at the topic-slug root and every beat line is an exact spoken line (spot-check by reading the files back).
+- [ ] If the graphics stage ran: every image in `assets/` exists and the PDF exists at the topic-slug root with landscape 960x540 pages (Phase 6b's MediaBox check).
+- [ ] **Attach the deliverables to the kanban task you are working**: `kanban_attach` every PDF and the 3 thumbnails (beat images stay on disk — the Artifacts tab shows the full `assets/` tree). Then verify the attachments actually landed by reading the task back (`kanban_show`) and counting them. Files on disk alone do NOT satisfy this gate.
 - [ ] Your final summary enumerates every file path produced (relative to the workspace root), grouped as Concepts / Scripts / Assets / PDF.
 
 **Do NOT finish with only a vague "files saved" message.** The enumerated
