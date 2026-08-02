@@ -780,14 +780,17 @@
         ),
         open ? (node.children || []).map(function (c) {
           return h(TreeEntry, { key: c.relPath, node: c, depth: depth + 1,
-                                forceOpen: props.forceOpen,
+                                forceOpen: props.forceOpen, query: props.query,
                                 selected: props.selected, onSelect: props.onSelect });
         }) : null
       );
     }
     var active = props.selected === node.relPath;
+    var isHit = props.query &&
+      node.name.toLowerCase().indexOf(props.query) !== -1;
     return h("div", {
-      className: "yti-tree-row yti-tree-file" + (active ? " yti-tree-active" : ""),
+      className: "yti-tree-row yti-tree-file" + (active ? " yti-tree-active" : "") +
+        (isHit ? " yti-search-hit" : ""),
       style: { paddingLeft: (depth * 14 + 16) + "px" },
       onClick: function () { props.onSelect(node); },
     },
@@ -1115,7 +1118,7 @@
                 "scripts to ", h("code", null, "youtube/{date}/recommended/"), ".")
             : sortTree(filteredTree).map(function (n) {
                 return h(TreeEntry, { key: (query ? "q-" + query + "-" : "") + n.relPath,
-                  node: n, depth: 0, forceOpen: !!query,
+                  node: n, depth: 0, forceOpen: !!query, query: query,
                   selected: sel && sel.relPath,
                   onSelect: function (node) { setSel(node); } });
               })

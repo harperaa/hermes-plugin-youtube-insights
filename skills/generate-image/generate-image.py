@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
-"""Generate images via xAI Grok's image model (the only sanctioned path).
+"""Generate images via xAI Grok, or Google Gemini as the fallback provider.
 
-Auth resolution order:
+Provider/auth resolution order (xAI always wins when present):
   1. XAI_API_KEY environment variable, if set.
   2. The hermes xai-oauth access token from ~/.hermes/auth.json
      (credential_pool["xai-oauth"][0]) — present after `hermes auth add xai-oauth`.
+  3. ONLY if neither resolves: GEMINI_API_KEY from the environment or
+     $HERMES_HOME/.env (set it on the dashboard Keys page). Uses the Gemini
+     image model instead of Grok — same CLI, same QA gate.
 
 Usage:
   python3 generate-image.py --prompt "..." --out /path/to/image.jpg \
@@ -29,13 +32,34 @@ import urllib.request
 from pathlib import Path
 
 API_BASE = os.environ.get("XAI_API_BASE", "https://api.x.ai/v1")
+GEMINI_API_BASE = os.environ.get(
+    "GEMINI_API_BASE", "https://generativelanguage.googleapis.com/v1beta")
 DEFAULT_MODEL = "grok-imagine-image"
+GEMINI_IMAGE_MODEL = os.environ.get("YTI_GEMINI_IMAGE_MODEL", "gemini-2.5-flash-image")
+GEMINI_VERIFY_MODEL = os.environ.get("YTI_GEMINI_VERIFY_MODEL", "gemini-2.5-flash")
 
 
-def resolve_token() -> str:
-    key = os.environ.get("XAI_API_KEY", "").strip()
+def _gemini_key() -> str:
+    key = os.environ.get("GEMINI_API_KEY", "").strip()
     if key:
         return key
+    env_file = Path(os.environ.get("HERMES_HOME", Path.home() / ".hermes")) / ".env"
+    try:
+        for line in env_file.read_text().splitlines():
+            line = line.strip()
+            if line.startswith("GEMINI_API_KEY="):
+                return line.split("=", 1)[1].strip().strip('"').strip("'")
+    except OSError:
+        pass
+    return ""
+
+
+def resolve_provider() -> tuple[str, str]:
+    """("xai", token) when any xAI credential resolves — xAI is ALWAYS
+    preferred; ("gemini", key) only as the fallback when it doesn't."""
+    key = os.environ.get("XAI_API_KEY", "").strip()
+    if key:
+        return ("xai", key)
     auth_path = Path(os.environ.get("HERMES_HOME", Path.home() / ".hermes")) / "auth.json"
     try:
         store = json.loads(auth_path.read_text())
@@ -59,10 +83,15 @@ def resolve_token() -> str:
 
         token = find_access_token(entry)
         if token:
-            return token
+            return ("xai", token)
     except (OSError, json.JSONDecodeError):
         pass
-    sys.exit("ERROR: no xAI credential — set XAI_API_KEY or run `hermes auth add xai-oauth`.")
+    gem = _gemini_key()
+    if gem:
+        return ("gemini", gem)
+    sys.exit("ERROR: no image-generation credential — connect xAI (set XAI_API_KEY "
+             "or run `hermes auth add xai-oauth`), or set GEMINI_API_KEY on the "
+             "dashboard Keys page (fallback provider).")
 
 
 _MIME_BY_EXT = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp"}
@@ -81,10 +110,78 @@ def _image_ref(source: str) -> dict:
     return {"url": f"data:{mime};base64,{encoded}", "type": "image_url"}
 
 
+def _input_bytes(source: str) -> tuple[bytes, str]:
+    """Raw bytes + mime for --input (local path or URL) — Gemini inlines them."""
+    if source.startswith(("http://", "https://")):
+        req = urllib.request.Request(source, headers={"User-Agent": "curl/8.4.0"})
+        with urllib.request.urlopen(req, timeout=120) as r:
+            data = r.read()
+        mime = r.headers.get_content_type() or "image/png"
+        return data, mime
+    path = Path(source)
+    if not path.exists():
+        sys.exit(f"ERROR: --input file not found: {path}")
+    return path.read_bytes(), _MIME_BY_EXT.get(path.suffix.lower(), "image/png")
+
+
+def _gemini_call(key: str, model: str, parts: list, gen_config: dict | None = None) -> dict:
+    body: dict = {"contents": [{"parts": parts}]}
+    if gen_config:
+        body["generationConfig"] = gen_config
+    req = urllib.request.Request(
+        f"{GEMINI_API_BASE}/models/{model}:generateContent",
+        data=json.dumps(body).encode(),
+        headers={"x-goog-api-key": key, "Content-Type": "application/json",
+                 "User-Agent": "curl/8.4.0"})
+    try:
+        with urllib.request.urlopen(req, timeout=300) as resp:
+            return json.loads(resp.read().decode())
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")
+        sys.exit(f"ERROR: Gemini API returned HTTP {exc.code}:\n{detail}")
+
+
+def _gemini_image_parts(payload: dict) -> list[bytes]:
+    out = []
+    for cand in payload.get("candidates") or []:
+        for part in ((cand.get("content") or {}).get("parts") or []):
+            blob = part.get("inlineData") or part.get("inline_data") or {}
+            if blob.get("data"):
+                out.append(base64.b64decode(blob["data"]))
+    return out
+
+
+def _generate_gemini(key: str, prompt: str, out: Path, n: int,
+                     aspect_ratio: str | None,
+                     input_image: str | None) -> list[Path]:
+    parts: list = []
+    if input_image:
+        data, mime = _input_bytes(input_image)
+        parts.append({"inline_data": {"mime_type": mime,
+                                      "data": base64.b64encode(data).decode()}})
+    parts.append({"text": prompt})
+    gen_config: dict = {"responseModalities": ["TEXT", "IMAGE"]}
+    if aspect_ratio:
+        gen_config["imageConfig"] = {"aspectRatio": aspect_ratio}
+    out.parent.mkdir(parents=True, exist_ok=True)
+    written: list[Path] = []
+    for i in range(max(1, n)):
+        payload = _gemini_call(key, GEMINI_IMAGE_MODEL, parts, gen_config)
+        images = _gemini_image_parts(payload)
+        if not images:
+            sys.exit(f"ERROR: no image in Gemini response:\n{json.dumps(payload)[:2000]}")
+        target = out if n <= 1 else out.with_name(f"{out.stem}-{i + 1}{out.suffix}")
+        target.write_bytes(images[0])
+        written.append(target)
+    return written
+
+
 def generate(prompt: str, out: Path, n: int, model: str,
              aspect_ratio: str | None = None,
              input_image: str | None = None) -> list[Path]:
-    token = resolve_token()
+    provider, token = resolve_provider()
+    if provider == "gemini":
+        return _generate_gemini(token, prompt, out, n, aspect_ratio, input_image)
     payload_body: dict = {
         "model": model,
         "prompt": prompt,
@@ -147,7 +244,7 @@ VERIFY_MODEL = os.environ.get("YTI_VERIFY_MODEL", "grok-4.5")
 def verify_image(path: Path, prompt: str, expect_text: str | None) -> dict:
     """Vision-QA a generated image: transcribe rendered text, flag misspellings
     and visual defects. Returns {"pass": bool, "issues": [...], "text": "..."}."""
-    token = resolve_token()
+    provider, token = resolve_provider()
     mime = _MIME_BY_EXT.get(path.suffix.lower(), "image/jpeg")
     data_url = f"data:{mime};base64,{base64.b64encode(path.read_bytes()).decode()}"
     checklist = (
@@ -163,23 +260,34 @@ def verify_image(path: Path, prompt: str, expect_text: str | None) -> dict:
         + 'Reply with ONLY a JSON object: {"pass": true|false, "text": "<all transcribed text>", '
           '"issues": ["<each problem found>"]}. Fail on ANY spelling error or garbled text.'
     )
-    body = json.dumps({
-        "model": VERIFY_MODEL,
-        "messages": [{"role": "user", "content": [
-            {"type": "image_url", "image_url": {"url": data_url}},
-            {"type": "text", "text": checklist},
-        ]}],
-        "temperature": 0,
-    }).encode()
-    req = urllib.request.Request(
-        f"{API_BASE}/chat/completions", data=body,
-        headers={"Authorization": f"Bearer {token}",
-                 "Content-Type": "application/json",
-                 "User-Agent": "curl/8.4.0"})
     try:
-        with urllib.request.urlopen(req, timeout=180) as resp:
-            payload = json.loads(resp.read().decode())
-        content = payload["choices"][0]["message"]["content"]
+        if provider == "gemini":
+            payload = _gemini_call(token, GEMINI_VERIFY_MODEL, [
+                {"inline_data": {"mime_type": mime,
+                                 "data": base64.b64encode(path.read_bytes()).decode()}},
+                {"text": checklist},
+            ], {"temperature": 0})
+            content = "".join(
+                part.get("text", "")
+                for cand in (payload.get("candidates") or [])
+                for part in ((cand.get("content") or {}).get("parts") or []))
+        else:
+            body = json.dumps({
+                "model": VERIFY_MODEL,
+                "messages": [{"role": "user", "content": [
+                    {"type": "image_url", "image_url": {"url": data_url}},
+                    {"type": "text", "text": checklist},
+                ]}],
+                "temperature": 0,
+            }).encode()
+            req = urllib.request.Request(
+                f"{API_BASE}/chat/completions", data=body,
+                headers={"Authorization": f"Bearer {token}",
+                         "Content-Type": "application/json",
+                         "User-Agent": "curl/8.4.0"})
+            with urllib.request.urlopen(req, timeout=180) as resp:
+                payload = json.loads(resp.read().decode())
+            content = payload["choices"][0]["message"]["content"]
         match = content[content.index("{"):content.rindex("}") + 1]
         return json.loads(match)
     except Exception as exc:  # noqa: BLE001 — verification must not crash generation

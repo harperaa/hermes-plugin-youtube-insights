@@ -15,6 +15,10 @@ requires_env:
     description: "API key for transcriptapi.com (YouTube transcripts + channel metadata)"
     url: "https://transcriptapi.com"
     secret: true
+  - name: GEMINI_API_KEY
+    description: "Google Gemini API key — image generation fallback, only used when no xAI credential is connected"
+    url: "https://aistudio.google.com/apikey"
+    secret: true
 
 provides_tools:
   - yt_add_channel
