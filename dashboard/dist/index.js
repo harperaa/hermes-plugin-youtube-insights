@@ -1028,10 +1028,36 @@
     }
 
     var IMG_EXTS = [".png", ".jpg", ".jpeg", ".webp", ".gif"];
+    function subtreeHasImages(n) {
+      if (n.kind === "file") return IMG_EXTS.indexOf(n.ext) !== -1;
+      return (n.children || []).some(subtreeHasImages);
+    }
+    // "With Images": keep the ancestor chain back to the date folders, and
+    // once a folder ITSELF holds the images (an assets/ child or direct
+    // image files), show that entire folder untouched.
+    function pruneToImages(nodes) {
+      var out = [];
+      nodes.forEach(function (n) {
+        if (n.kind !== "dir") return;
+        if (!subtreeHasImages(n)) return;
+        var directImages = (n.children || []).some(function (c) {
+          return c.kind === "file" && IMG_EXTS.indexOf(c.ext) !== -1;
+        });
+        var imageChildDir = (n.children || []).some(function (c) {
+          return c.kind === "dir" && c.name === "assets" && subtreeHasImages(c);
+        });
+        if (directImages || imageChildDir) {
+          out.push(n); // whole folder, contents intact
+        } else {
+          out.push(Object.assign({}, n, { children: pruneToImages(n.children || []) }));
+        }
+      });
+      return out;
+    }
     var query = q.trim().toLowerCase();
-    var results = (query || withImages) && tree
+    var results = query && tree
       ? flattenFiles(tree, []).filter(function (n) {
-          if (query && n.relPath.toLowerCase().indexOf(query) === -1) return false;
+          if (n.relPath.toLowerCase().indexOf(query) === -1) return false;
           if (withImages && IMG_EXTS.indexOf(n.ext) === -1) return false;
           return true;
         })
@@ -1082,7 +1108,7 @@
             ? h("div", { className: "yti-empty" },
                 "No deliverables yet. The scheduled pipeline writes concepts and ",
                 "scripts to ", h("code", null, "youtube/{date}/recommended/"), ".")
-            : sortTree(tree).map(function (n) {
+            : sortTree(withImages ? pruneToImages(tree) : tree).map(function (n) {
                 return h(TreeEntry, { key: n.relPath, node: n, depth: 0,
                   selected: sel && sel.relPath,
                   onSelect: function (node) { setSel(node); } });
