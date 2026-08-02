@@ -992,7 +992,7 @@
             : "Generate all beat images, 3 thumbnails, and the production PDF into this script's assets folder",
           onClick: produceScript,
           className: "yti-produce-btn",
-        }, prodOpen ? "Producing…" : "Produce ✨") : null,
+        }, prodOpen ? "Producing…" : "Produce 🎥") : null,
         prodChat ? h("a", { className: "yti-gen-link", href: prodChat,
           onClick: function (e) { e.preventDefault(); window.location.assign(prodChat); } }, "chat ↗") : null,
         prodTask ? h("a", { className: "yti-gen-link", href: prodTask,
