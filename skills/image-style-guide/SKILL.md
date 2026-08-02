@@ -8,8 +8,9 @@ description: Visual style presets for beat images and thumbnails — sketchnote 
 Style presets for every image the content pipeline produces. The
 `youtube-content-creator` skill consults this when writing `Visual:` fields;
 the `generate-image` skill applies the chosen directive verbatim in its
-prompts (the xAI Grok endpoint takes no image input, so the directive text IS
-the style carrier).
+prompts AND anchors sketchnote/whiteboard styles image-to-image by passing
+the bundled reference as the source image (`--input`, xAI `images/edits`) —
+the directive text plus the source image together carry the style.
 
 **Default: `sketchnote` — the channel's signature style.** It matches the
 bundled `youtube-baseline-reference.png` (in the `generate-image` and

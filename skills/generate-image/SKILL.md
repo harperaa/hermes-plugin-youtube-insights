@@ -164,12 +164,14 @@ The baseline reference is `youtube-baseline-reference.png` — a polished sketch
 ### Style Anchor — verify against the baseline reference
 
 The baseline reference `youtube-baseline-reference.png` is bundled in this
-skill's directory. The xAI endpoint takes no image input, so the sketchnote
-style is carried by the **Style Preamble** below — prefix it to every beat
-prompt verbatim. After each generation, VIEW the output side-by-side with the
-baseline reference; if the canvas, palette, frame brackets, or lettering
-drift from the reference, regenerate with a prompt that re-cites the missing
-element. Do NOT confuse this with the whiteboard style — the two are not
+skill's directory. Anchor every beat image to it TWICE: pass it as the
+source image (`--input "$SKILL_DIR/youtube-baseline-reference.png"`, which
+routes to xAI `images/edits` image-to-image) AND prefix the **Style
+Preamble** below to every beat prompt verbatim. After each generation, VIEW
+the output side-by-side with the baseline reference; if the canvas, palette,
+frame brackets, or lettering drift from the reference, regenerate with a
+prompt that re-cites the missing element. Do NOT confuse this with the
+whiteboard style — the two are not
 interchangeable.
 
 ```bash
