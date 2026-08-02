@@ -26,6 +26,7 @@ import yti_store  # noqa: E402
 import yti_fetcher  # noqa: E402
 import yti_insights  # noqa: E402
 import yti_analysis  # noqa: E402
+import yti_generate  # noqa: E402
 import yti_paths  # noqa: E402
 import yti_workspace  # noqa: E402
 
@@ -57,6 +58,13 @@ def get_videos() -> dict[str, Any]:
         videos = yti_fetcher.trends_from_db(conn)
         if not videos:
             videos = []
+        # ✨ generation state per row (open/stale/done + chat/task links) —
+        # same lifecycle the paperclip trends page had for its CMO issues.
+        gen = yti_generate.generation_states()
+        for v in videos:
+            g = gen.get(v.get("videoId"))
+            if g:
+                v["generation"] = g
         last_fetch = yti_store.get_meta(conn, "last_fetch_run")
         return {"videos": videos, "lastFetchRun": last_fetch,
                 "fetchRunning": _FETCH_STATE["running"],
@@ -97,6 +105,20 @@ def delete_channel(handle: str) -> dict[str, Any]:
         return {"ok": True, "channels": yti_store.remove_channel(conn, handle)}
     finally:
         conn.close()
+
+
+class GenerateBody(BaseModel):
+    videoId: str
+
+
+@router.post("/generate-content")
+def post_generate_content(body: GenerateBody) -> dict[str, Any]:
+    """✨ button: create the single-video script-generation kanban task
+    (gap-finder Mode A → content-creator → artifacts + attachments)."""
+    result = yti_generate.create_generation_task(body.videoId)
+    if result.get("error"):
+        raise HTTPException(status_code=400, detail=result["error"])
+    return result
 
 
 @router.post("/fetch")

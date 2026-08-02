@@ -123,6 +123,66 @@
   }
 
   // -------------------------------------------------------------------------
+  // ✨ per-row generation cell (paperclip parity: idle sparkle → spinner
+  // while the task is open → stale after 30 min (click re-runs) → done =
+  // sparkle again + a fixed-slot ↗ to the worker's chat thread / task).
+  // -------------------------------------------------------------------------
+  function GenerateCell(props) {
+    const v = props.video;
+    const g = v.generation || null;
+    const st = useState(false);
+    const submitting = st[0], setSubmitting = st[1];
+    const isOpen = !!g && g.status === "open";
+    const isStale = !submitting && !!g && g.status === "stale";
+    const isDone = !!g && g.status === "done";
+
+    const label = isOpen
+      ? "Script generation in progress — spinning until the task is done"
+      : isStale
+      ? "Previous attempt hasn't completed in 30+ min — click to re-run"
+      : isDone
+      ? "Re-generate (previous run completed — click ↗ to review)"
+      : "Generate a similar-but-unique video script (creates a task + chat)";
+
+    const onClick = function () {
+      if (isOpen || submitting) return;
+      setSubmitting(true);
+      api("/generate-content", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ videoId: v.videoId }),
+      }).then(function () { setSubmitting(false); props.refresh(); })
+        .catch(function (e) { setSubmitting(false); window.alert(String((e && e.message) || e)); });
+    };
+
+    const reviewHref = g && (g.sessionId
+      ? "/chat?resume=" + encodeURIComponent(g.sessionId)
+      : (g.taskId ? "/kanban#task=" + encodeURIComponent(g.taskId) : null));
+
+    return h("span", { style: { display: "inline-flex", alignItems: "center", gap: 6 } },
+      h("button", {
+        className: "yti-generate-btn",
+        onClick: onClick,
+        disabled: isOpen || submitting,
+        title: label,
+        "aria-label": label,
+        style: { cursor: (isOpen || submitting) ? "wait" : "pointer" },
+      }, (isOpen || submitting)
+        ? h("span", { className: "yti-gen-spinner", role: "status" })
+        : h("span", { "aria-hidden": true }, "✨")),
+      h("span", { style: { display: "inline-flex", width: 14, justifyContent: "center" } },
+        (g && reviewHref)
+          ? h("a", {
+              href: reviewHref,
+              onClick: function (e) { e.preventDefault(); window.location.assign(reviewHref); },
+              title: isDone ? "Open the finished run — scripts are on the Artifacts tab and attached to the task" : "Open this run's chat thread",
+              className: "yti-gen-link",
+            }, "↗")
+          : null)
+    );
+  }
+
+  // -------------------------------------------------------------------------
   // Trends view (port of YouTubeTrendsPageContent)
   // -------------------------------------------------------------------------
 
@@ -147,6 +207,17 @@
     }, []);
 
     useEffect(function () { refresh(); }, [refresh]);
+
+    // Poll while any ✨ generation task is open so the spinner flips to
+    // ✨ + ↗ shortly after the worker completes (paperclip parity).
+    const hasOpenGeneration = !!(data && data.videos || []).some(function (v) {
+      return v.generation && v.generation.status === "open";
+    });
+    useEffect(function () {
+      if (!hasOpenGeneration) return undefined;
+      const id = window.setInterval(refresh, 15000);
+      return function () { window.clearInterval(id); };
+    }, [hasOpenGeneration, refresh]);
 
     const videos = (data && data.videos) || [];
     const loading = data === null;
@@ -331,7 +402,8 @@
                     onClick: function () { toggleSort("vph"); },
                   }, "VPH" + sortGlyph("vph")),
                   h("th", { className: "yti-center" }, "Trend"),
-                  h("th", { className: "yti-center" }, "Status")
+                  h("th", { className: "yti-center" }, "Status"),
+                  h("th", { className: "yti-center", title: "Generate a similar-but-unique script from this video" }, "Create")
                 )
               ),
               h("tbody", null,
@@ -365,6 +437,9 @@
                     h("td", { className: "yti-center" },
                       h("span", { className: "yti-status yti-status-" + (v.status || "discovered") },
                         v.status || "discovered")
+                    ),
+                    h("td", { className: "yti-center" },
+                      h(GenerateCell, { video: v, refresh: refresh })
                     )
                   );
                 })

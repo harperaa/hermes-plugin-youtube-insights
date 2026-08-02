@@ -444,3 +444,27 @@
 .yti-md table { border-collapse: collapse; margin: 8px 0; }
 .yti-md th, .yti-md td { border: 1px solid var(--color-border); padding: 4px 8px; font-size: 12px; }
 .yti-error { color: var(--color-destructive, #e5484d); }
+
+/* ✨ per-row generation button (paperclip trends-page parity) */
+.yti-generate-btn {
+  background: transparent;
+  border: 1px solid var(--color-border, #2b2b44);
+  border-radius: 6px;
+  padding: 3px 9px;
+  font-size: 15px;
+  line-height: 1;
+  color: var(--color-foreground, #e7e7f0);
+}
+.yti-generate-btn:hover:not(:disabled) { border-color: var(--color-primary, #14b8a6); }
+.yti-generate-btn:disabled { opacity: 0.75; }
+.yti-gen-link { color: var(--color-primary, #14b8a6); text-decoration: none; font-size: 14px; }
+.yti-gen-spinner {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid color-mix(in srgb, var(--color-primary, #14b8a6) 30%, transparent);
+  border-top-color: var(--color-primary, #14b8a6);
+  animation: yti-gen-spin 0.9s linear infinite;
+}
+@keyframes yti-gen-spin { to { transform: rotate(360deg); } }

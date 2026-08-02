@@ -34,7 +34,8 @@ MAX_RETRIES = 2
 
 ANALYST_SKILLS = ["youtube-insights:youtube-video-analyst"]
 _OPEN_KANBAN_STATUSES = {"triage", "todo", "scheduled", "ready", "claimed",
-                         "in_progress", "in-progress", "review", "blocked"}
+                         "in_progress", "in-progress", "review", "blocked",
+                         "running", "in_review"}
 
 
 def _kanban():
