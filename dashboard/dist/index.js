@@ -155,11 +155,21 @@
         .catch(function (e) { setSubmitting(false); window.alert(String((e && e.message) || e)); });
     };
 
-    const reviewHref = g && (g.sessionId
-      ? "/chat?resume=" + encodeURIComponent(g.sessionId)
-      : (g.taskId ? "/kanban#task=" + encodeURIComponent(g.taskId) : null));
+    const chatHref = g && g.sessionId
+      ? "/chat?resume=" + encodeURIComponent(g.sessionId) : null;
+    const taskHref = g && g.taskId
+      ? "/kanban#task=" + encodeURIComponent(g.taskId) : null;
 
-    return h("span", { style: { display: "inline-flex", alignItems: "center", gap: 6 } },
+    function navLink(href, text, title) {
+      return h("a", {
+        href: href,
+        onClick: function (e) { e.preventDefault(); window.location.assign(href); },
+        title: title,
+        className: "yti-gen-link",
+      }, text);
+    }
+
+    return h("span", { style: { display: "inline-flex", alignItems: "center", gap: 8 } },
       h("button", {
         className: "yti-generate-btn",
         onClick: onClick,
@@ -170,15 +180,14 @@
       }, (isOpen || submitting)
         ? h("span", { className: "yti-gen-spinner", role: "status" })
         : h("span", { "aria-hidden": true }, "✨")),
-      h("span", { style: { display: "inline-flex", width: 14, justifyContent: "center" } },
-        (g && reviewHref)
-          ? h("a", {
-              href: reviewHref,
-              onClick: function (e) { e.preventDefault(); window.location.assign(reviewHref); },
-              title: isDone ? "Open the finished run — scripts are on the Artifacts tab and attached to the task" : "Open this run's chat thread",
-              className: "yti-gen-link",
-            }, "↗")
-          : null)
+      chatHref
+        ? navLink(chatHref, "chat ↗", "Open this run's conversation thread")
+        : null,
+      taskHref
+        ? navLink(taskHref, "task ↗", isDone
+            ? "Finished run — scripts attached here and on the Artifacts tab"
+            : "Open this run's kanban task")
+        : null
     );
   }
 
