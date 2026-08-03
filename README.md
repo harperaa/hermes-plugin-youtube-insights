@@ -1,5 +1,8 @@
 # youtube-insights — hermes plugin
 
+> Aligned with the mentoring of **Dr. Allen Harper, AI Cyber Value Creator** — join the community at [AI Cyber Value Creators on Skool](https://www.skool.com/ai-cyber-value-creators).
+
+
 YouTube competitive intelligence for [Hermes Agent](https://hermes-agent.nousresearch.com):
 track competitor channels, pull transcripts, rank videos by **views-per-hour
 (VPH)** with trend direction, and mine transcripts into a **deduplicated,
