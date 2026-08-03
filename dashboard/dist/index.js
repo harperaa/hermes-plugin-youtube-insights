@@ -192,6 +192,21 @@
   }
 
   // -------------------------------------------------------------------------
+  // Page-size selector shared by the Trends and Insights pagers.
+  // -------------------------------------------------------------------------
+  var PAGE_SIZES = [30, 50, 100, 200];
+  function PageSizeSelect(props) {
+    return h("select", {
+      className: "yti-select yti-pagesize",
+      value: String(props.value),
+      onChange: function (e) { props.onChange(Number(e.target.value)); },
+      title: "Rows per page",
+    }, PAGE_SIZES.map(function (n) {
+      return h("option", { key: n, value: String(n) }, n + " / page");
+    }));
+  }
+
+  // -------------------------------------------------------------------------
   // Trends view (port of YouTubeTrendsPageContent)
   // -------------------------------------------------------------------------
 
@@ -202,6 +217,8 @@
     const [showChannels, setShowChannels] = useState(false);
     const [sortField, setSortField] = useState("vph");
     const [sortAsc, setSortAsc] = useState(false);
+    const [page, setPage] = useState(0);
+    const [pageSize, setPageSize] = useState(30);
     const [fetching, setFetching] = useState(false);
     const [analyzing, setAnalyzing] = useState(false);
     const [notice, setNotice] = useState(null);
@@ -304,6 +321,7 @@
     const toggleSort = function (field) {
       if (sortField === field) setSortAsc(!sortAsc);
       else { setSortField(field); setSortAsc(false); }
+      setPage(0);
     };
 
     const sorted = videos.slice().sort(function (a, b) {
@@ -312,6 +330,11 @@
       if (sortField === "views") return (a.views - b.views) * mul;
       return (new Date(a.published).getTime() - new Date(b.published).getTime()) * mul;
     });
+
+    // clamp the page if the list shrank or the page size grew
+    const maxPage = Math.max(0, Math.ceil(sorted.length / pageSize) - 1);
+    const curPage = Math.min(page, maxPage);
+    const paged = sorted.slice(curPage * pageSize, (curPage + 1) * pageSize);
 
     const topVph = videos.length
       ? Math.max.apply(null, videos.map(function (v) { return v.vph; }))
@@ -416,7 +439,7 @@
                 )
               ),
               h("tbody", null,
-                sorted.map(function (v) {
+                paged.map(function (v) {
                   return h("tr", { key: v.videoId },
                     h("td", null,
                       h("a", { href: v.link, target: "_blank", rel: "noopener" },
@@ -457,6 +480,26 @@
             sorted.length === 0
               ? h("div", { className: "yti-empty" },
                   "No videos tracked yet. Add channels above and click Refresh.")
+              : null,
+            sorted.length > PAGE_SIZES[0]
+              ? h("div", { className: "yti-pagination" },
+                  h(Button, {
+                    size: "sm", disabled: curPage === 0,
+                    onClick: function () { setPage(curPage - 1); },
+                  }, "Previous"),
+                  h("span", { className: "yti-muted yti-small" },
+                    (curPage * pageSize + 1) + "–" +
+                    Math.min((curPage + 1) * pageSize, sorted.length) +
+                    " of " + sorted.length),
+                  h(Button, {
+                    size: "sm", disabled: (curPage + 1) * pageSize >= sorted.length,
+                    onClick: function () { setPage(curPage + 1); },
+                  }, "Next"),
+                  h(PageSizeSelect, {
+                    value: pageSize,
+                    onChange: function (n) { setPageSize(n); setPage(0); },
+                  })
+                )
               : null
           )
     );
@@ -474,7 +517,7 @@
     const [page, setPage] = useState(0);
     const [listData, setListData] = useState(null);
     const [stats, setStats] = useState(null);
-    const limit = 30;
+    const [limit, setLimit] = useState(30);
 
     const load = useCallback(function () {
       const params = new URLSearchParams({
@@ -484,7 +527,7 @@
       api("/insights?" + params.toString()).then(setListData).catch(function () {
         setListData({ insights: [], total: 0 });
       });
-    }, [search, category, sortBy, page]);
+    }, [search, category, sortBy, page, limit]);
 
     useEffect(function () {
       const id = window.setTimeout(load, search ? 250 : 0);
@@ -628,7 +671,7 @@
               ? h("div", { className: "yti-empty" },
                   "No insights found. Run analysis on tracked videos to generate insights.")
               : null,
-            total > limit ? h("div", { className: "yti-pagination" },
+            total > PAGE_SIZES[0] ? h("div", { className: "yti-pagination" },
               h(Button, {
                 size: "sm", disabled: page === 0,
                 onClick: function () { setPage(page - 1); },
@@ -638,7 +681,11 @@
               h(Button, {
                 size: "sm", disabled: (page + 1) * limit >= total,
                 onClick: function () { setPage(page + 1); },
-              }, "Next")
+              }, "Next"),
+              h(PageSizeSelect, {
+                value: limit,
+                onChange: function (n) { setLimit(n); setPage(0); },
+              })
             ) : null
           )
     );

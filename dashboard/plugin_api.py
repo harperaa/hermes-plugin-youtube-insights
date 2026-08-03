@@ -220,7 +220,7 @@ def get_insights(q: str = "", category: str = "", sortBy: str = "sources",
     try:
         return yti_insights.search_insights(
             conn, query=q, category=category, sort_by=sortBy,
-            limit=max(1, min(limit, 100)), offset=max(0, offset),
+            limit=max(1, min(limit, 200)), offset=max(0, offset),
         )
     finally:
         conn.close()

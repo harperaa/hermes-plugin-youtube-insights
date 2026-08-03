@@ -115,6 +115,9 @@ def test_category_filter_and_pagination(conn):
     assert res["total"] == 5
     page1 = yti_insights.search_insights(conn, category="business", limit=2, offset=0)
     page2 = yti_insights.search_insights(conn, category="business", limit=2, offset=2)
+    # the dashboard offers up to 200/page — the store must honour it
+    big = yti_insights.search_insights(conn, category="business", limit=200, offset=0)
+    assert len(big["insights"]) == big["total"] or len(big["insights"]) == 200
     assert len(page1["insights"]) == 2
     assert len(page2["insights"]) == 2
     ids1 = {i["id"] for i in page1["insights"]}
