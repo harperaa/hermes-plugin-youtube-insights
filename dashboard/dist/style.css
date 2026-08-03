@@ -14,7 +14,7 @@
 .yti-page {
   padding: 24px;
   max-width: 1200px;
-  color: var(--color-foreground);
+  color: inherit;
 }
 
 .yti-page-narrow {
@@ -89,11 +89,11 @@
 }
 
 .yti-tab:hover {
-  color: var(--color-foreground);
+  color: inherit;
 }
 
 .yti-tab-active {
-  color: var(--color-foreground);
+  color: inherit;
   border-bottom-color: var(--color-ring);
 }
 
@@ -177,8 +177,8 @@
 }
 
 .yti-chip-channel {
-  background: color-mix(in srgb, var(--color-foreground) 18%, transparent);
-  color: var(--color-foreground);
+  background: color-mix(in srgb, currentColor 18%, transparent);
+  color: inherit;
 }
 
 .yti-chip-remove {
@@ -235,7 +235,7 @@
 .yti-table th.yti-strong,
 .yti-table td.yti-strong {
   font-weight: 700;
-  color: var(--color-foreground);
+  color: inherit;
 }
 
 .yti-table td {
@@ -253,7 +253,7 @@
 }
 
 .yti-thumb-empty {
-  background: color-mix(in srgb, var(--color-foreground) 10%, transparent);
+  background: color-mix(in srgb, currentColor 10%, transparent);
 }
 
 .yti-video-link {
@@ -330,7 +330,7 @@
 
 .yti-select {
   background: var(--color-card);
-  color: var(--color-foreground);
+  color: inherit;
   border: 1px solid var(--color-border);
   border-radius: calc(var(--radius, 8px) - 2px);
   padding: 6px 10px;
@@ -423,11 +423,11 @@
 
 /* -- Artifacts (workspace deliverables) ------------------------------------ */
 .yti-artifacts-head { display: flex; align-items: center; justify-content: space-between; margin: 4px 0 12px; }
-.yti-artifacts-head h2 { font-size: 20px; font-weight: 700; color: var(--color-foreground); margin: 0; }
+.yti-artifacts-head h2 { font-size: 20px; font-weight: 700; color: inherit; margin: 0; }
 .yti-artifacts-body { display: flex; gap: 16px; min-height: 420px; }
 .yti-tree { width: 300px; flex-shrink: 0; border: 1px solid var(--color-border); border-radius: 8px; padding: 8px 4px; overflow: auto; max-height: 70vh; background: var(--color-card); }
-.yti-tree-row { display: flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 6px; cursor: pointer; font-size: 13px; color: var(--color-foreground); white-space: nowrap; overflow: hidden; }
-.yti-tree-row:hover { background: color-mix(in srgb, var(--color-foreground) 7%, transparent); }
+.yti-tree-row { display: flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 6px; cursor: pointer; font-size: 13px; color: inherit; white-space: nowrap; overflow: hidden; }
+.yti-tree-row:hover { background: color-mix(in srgb, currentColor 7%, transparent); }
 .yti-tree-active { background: color-mix(in srgb, var(--color-ring) 18%, transparent); }
 .yti-tree-caret { width: 12px; color: var(--color-muted-foreground); }
 .yti-tree-name { overflow: hidden; text-overflow: ellipsis; }
@@ -436,11 +436,11 @@
 .yti-preview-path { font-family: var(--font-mono, monospace); font-size: 11px; color: var(--color-muted-foreground); margin-bottom: 10px; border-bottom: 1px solid var(--color-border); padding-bottom: 6px; }
 .yti-artifact-img { max-width: 100%; border-radius: 6px; }
 .yti-pdf { width: 100%; height: 62vh; border: 0; }
-.yti-pre { font-size: 12px; white-space: pre-wrap; color: var(--color-foreground); }
-.yti-md-editor { width: 100%; min-height: 50vh; font-family: var(--font-mono, monospace); font-size: 13px; color: var(--color-foreground); background: transparent; border: 1px solid var(--color-border); border-radius: 6px; padding: 10px; }
-.yti-md h1, .yti-md h2, .yti-md h3, .yti-md h4 { color: var(--color-foreground); margin: 14px 0 6px; }
-.yti-md p, .yti-md li { font-size: 13px; line-height: 1.55; color: var(--color-foreground); }
-.yti-md pre { background: color-mix(in srgb, var(--color-foreground) 6%, transparent); padding: 10px; border-radius: 6px; overflow: auto; font-size: 12px; }
+.yti-pre { font-size: 12px; white-space: pre-wrap; color: inherit; }
+.yti-md-editor { width: 100%; min-height: 50vh; font-family: var(--font-mono, monospace); font-size: 13px; color: inherit; background: transparent; border: 1px solid var(--color-border); border-radius: 6px; padding: 10px; }
+.yti-md h1, .yti-md h2, .yti-md h3, .yti-md h4 { color: inherit; margin: 14px 0 6px; }
+.yti-md p, .yti-md li { font-size: 13px; line-height: 1.55; color: inherit; }
+.yti-md pre { background: color-mix(in srgb, currentColor 6%, transparent); padding: 10px; border-radius: 6px; overflow: auto; font-size: 12px; }
 .yti-md table { border-collapse: collapse; margin: 8px 0; }
 .yti-md th, .yti-md td { border: 1px solid var(--color-border); padding: 4px 8px; font-size: 12px; }
 .yti-error { color: var(--color-destructive, #e5484d); }
@@ -453,7 +453,7 @@
   padding: 3px 9px;
   font-size: 15px;
   line-height: 1;
-  color: var(--color-foreground, #e7e7f0);
+  color: inherit;
 }
 .yti-generate-btn:hover:not(:disabled) { border-color: var(--color-primary, #14b8a6); }
 .yti-generate-btn:disabled { opacity: 0.75; }
@@ -487,7 +487,7 @@
   background: var(--color-input, #0f0f1c);
   border: 1px solid var(--color-border, #2b2b44);
   border-radius: 6px;
-  color: var(--color-foreground, #e7e7f0);
+  color: inherit;
   font-size: 13px;
   padding: 5px 10px;
   min-width: 180px;
@@ -500,7 +500,7 @@
   padding: 5px 8px;
   background: transparent;
   border: 0;
-  color: var(--color-foreground, #e7e7f0);
+  color: inherit;
   cursor: pointer;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -537,7 +537,7 @@
   border-radius: 6px;
   border: 1px solid var(--color-border, #2b2b44);
   background: var(--color-secondary, #13131f);
-  color: var(--color-foreground, #e7e7f0);
+  color: inherit;
   cursor: pointer;
 }
 .yti-filter-chip-on { border-color: var(--color-primary, #14b8a6); color: var(--color-primary, #14b8a6); }
