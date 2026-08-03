@@ -769,18 +769,33 @@
     var openState = useState(depth < 2 || !!props.forceOpen);
     var open = openState[0], setOpen = openState[1];
     if (node.kind === "dir") {
+      // Produce status ripples up the ancestor chain (back to the date
+      // folder): spinner while a script beneath is being produced, green
+      // once produced. Spinner wins when both apply.
+      var pst = "";
+      if (props.prod) {
+        if (props.prod.producing[node.relPath]) pst = "producing";
+        else if (props.prod.produced[node.relPath]) pst = "produced";
+      }
       return h("div", { className: "yti-tree-dir" },
         h("div", {
-          className: "yti-tree-row",
+          className: "yti-tree-row" + (pst ? " yti-dir-" + pst : ""),
           style: { paddingLeft: (depth * 14) + "px" },
           onClick: function () { setOpen(!open); },
+          title: pst === "producing" ? "A script in this folder is being produced…"
+            : pst === "produced" ? "Contains a produced script" : undefined,
         },
           h("span", { className: "yti-tree-caret" }, open ? "▾" : "▸"),
-          h("span", { className: "yti-tree-name" }, "📁 " + node.name)
+          pst === "producing"
+            ? h("span", { className: "yti-dir-spinner" })
+            : h("span", null, "📁 "),
+          h("span", { className: "yti-tree-name" },
+            node.name + (pst === "produced" ? " ✓" : ""))
         ),
         open ? (node.children || []).map(function (c) {
           return h(TreeEntry, { key: c.relPath, node: c, depth: depth + 1,
                                 forceOpen: props.forceOpen, query: props.query,
+                                prod: props.prod,
                                 selected: props.selected, onSelect: props.onSelect });
         }) : null
       );
@@ -821,6 +836,8 @@
     var sortDesc = sortState[0], setSortDesc = sortState[1];
     var prodState = useState({});
     var produce = prodState[0], setProduce = prodState[1];
+    var producedFilterState = useState(false);
+    var withProduced = producedFilterState[0], setWithProduced = producedFilterState[1];
     var copiedState = useState("");
     var copied = copiedState[0], setCopied = copiedState[1];
 
@@ -1032,6 +1049,48 @@
     }
 
     var IMG_EXTS = [".png", ".jpg", ".jpeg", ".webp", ".gif"];
+    // Ancestor chains (date folder downward) for every produce run.
+    var prodDirs = (function () {
+      var producing = {}, produced = {};
+      Object.keys(produce || {}).forEach(function (rel) {
+        var st = (produce[rel] || {}).status;
+        if (st !== "open" && st !== "done") return;   // stale never decorates
+        var parts = rel.split("/");
+        for (var i = 2; i < parts.length; i++) {
+          var dir = parts.slice(0, i).join("/");
+          if (st === "open") producing[dir] = 1;
+          else produced[dir] = 1;
+        }
+      });
+      return { producing: producing, produced: produced };
+    })();
+
+    function subtreeHasProduced(n) {
+      if (n.kind === "file")
+        return !!(produce[n.relPath] && produce[n.relPath].status === "done");
+      return (n.children || []).some(subtreeHasProduced);
+    }
+    // "Produced": ancestor chain back to the date folders; once a folder
+    // itself holds the produced script (directly or via a scripts/ child),
+    // show that entire folder untouched — mirrors the With Images rules.
+    function pruneToProduced(nodes) {
+      var out = [];
+      nodes.forEach(function (n) {
+        if (n.kind !== "dir") return;
+        if (!subtreeHasProduced(n)) return;
+        var direct = (n.children || []).some(function (c) {
+          return c.kind === "file" && produce[c.relPath] &&
+            produce[c.relPath].status === "done";
+        });
+        var scriptsChild = (n.children || []).some(function (c) {
+          return c.kind === "dir" && c.name === "scripts" && subtreeHasProduced(c);
+        });
+        if (direct || scriptsChild) out.push(n);
+        else out.push(Object.assign({}, n, { children: pruneToProduced(n.children || []) }));
+      });
+      return out;
+    }
+
     function subtreeHasImages(n) {
       if (n.kind === "file") return IMG_EXTS.indexOf(n.ext) !== -1;
       return (n.children || []).some(subtreeHasImages);
@@ -1075,7 +1134,8 @@
     }
     var filteredTree = tree
       ? (function () {
-          var t = withImages && !query ? pruneToImages(tree) : tree;
+          var t = withProduced ? pruneToProduced(tree) : tree;
+          if (withImages && !query) t = pruneToImages(t);
           if (query) t = filterByQuery(withImages ? pruneToImages(t) : t);
           return t;
         })()
@@ -1104,6 +1164,11 @@
                 title: "Show only image files (generated assets and thumbnails)",
               }, "With Images"),
               h("button", {
+                className: "yti-filter-chip" + (withProduced ? " yti-filter-chip-on" : ""),
+                onClick: function () { setWithProduced(!withProduced); },
+                title: "Show only folders containing a produced script",
+              }, "Produced"),
+              h("button", {
                 className: "yti-filter-chip",
                 onClick: function () { setSortDesc(!sortDesc); },
                 title: "Toggle directory sort order",
@@ -1119,6 +1184,7 @@
             : sortTree(filteredTree).map(function (n) {
                 return h(TreeEntry, { key: (query ? "q-" + query + "-" : "") + n.relPath,
                   node: n, depth: 0, forceOpen: !!query, query: query,
+                  prod: prodDirs,
                   selected: sel && sel.relPath,
                   onSelect: function (node) { setSel(node); } });
               })
