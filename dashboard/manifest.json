@@ -2,7 +2,7 @@
   "name": "youtube-insights",
   "label": "YouTube Insights",
   "description": "Competitor YouTube intelligence \u2014 VPH trends, transcripts, and a deduplicated insight knowledge base",
-  "icon": "Activity",
+  "icon": "Lightbulb",
   "version": "1.0.0",
   "tab": {
     "path": "/youtube",
