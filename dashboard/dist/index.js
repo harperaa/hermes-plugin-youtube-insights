@@ -554,6 +554,7 @@
     };
 
     return h("div", { className: "yti-page yti-page-narrow" },
+      h("h1", { className: "yti-title yti-title-block" }, "YouTube Insights"),
 
       // Stats
       h("div", { className: "yti-stats-row" },
@@ -1188,6 +1189,7 @@
       : null;
 
     return h("div", { className: "yti-artifacts" },
+      h("h1", { className: "yti-title yti-title-block" }, "Artifacts"),
       h("div", { className: "yti-artifacts-head" },
         h("h2", null, "Workspace Deliverables"),
         h("div", { className: "yti-actions" },
