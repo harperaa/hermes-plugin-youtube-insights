@@ -1258,7 +1258,7 @@
           "AI Cyber Value Creator™"),
         h("h1", { style: { fontSize: 30, margin: "4px 0 6px",
                            fontWeight: 800 } },
-          "🎥 Long Form")),
+          "🎬 Long Form")),
       h("div", { className: "yti-tabs" },
         h("button", {
           className: "yti-tab" + (view === "trends" ? " yti-tab-active" : ""),
