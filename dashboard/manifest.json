@@ -1,11 +1,11 @@
 {
   "name": "youtube-insights",
-  "label": "YouTube Insights",
+  "label": "Long Form",
   "description": "Competitor YouTube intelligence \u2014 VPH trends, transcripts, and a deduplicated insight knowledge base",
   "icon": "Eye",
   "version": "1.0.0",
   "tab": {
-    "path": "/youtube",
+    "path": "/longform",
     "position": "after:roadmap"
   },
   "entry": "dist/index.js",

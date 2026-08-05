@@ -554,7 +554,7 @@
     };
 
     return h("div", { className: "yti-page yti-page-narrow" },
-      h("h1", { className: "yti-title yti-title-block" }, "YouTube Insights"),
+      h("h1", { className: "yti-title yti-title-block" }, "Long Form"),
 
       // Stats
       h("div", { className: "yti-stats-row" },
