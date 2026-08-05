@@ -554,14 +554,6 @@
     };
 
     return h("div", { className: "yti-page yti-page-narrow" },
-      h("div", { style: { marginBottom: 14 } },
-        h("div", { style: { fontSize: 13, letterSpacing: 1.5,
-                            color: "var(--color-muted-foreground, #9aa0b4)",
-                            textTransform: "uppercase" } },
-          "AI Cyber Value Creator™"),
-        h("h1", { style: { fontSize: 30, margin: "4px 0 6px",
-                           fontWeight: 800 } },
-          "🎥 Long Form")),
 
       // Stats
       h("div", { className: "yti-stats-row" },
@@ -1257,6 +1249,14 @@
   function YouTubeInsightsPage() {
     const [view, setView] = useState("trends");
     return h("div", { className: "yti-root" },
+      h("div", { style: { marginBottom: 14 } },
+        h("div", { style: { fontSize: 13, letterSpacing: 1.5,
+                            color: "var(--color-muted-foreground, #9aa0b4)",
+                            textTransform: "uppercase" } },
+          "AI Cyber Value Creator™"),
+        h("h1", { style: { fontSize: 30, margin: "4px 0 6px",
+                           fontWeight: 800 } },
+          "🎥 Long Form")),
       h("div", { className: "yti-tabs" },
         h("button", {
           className: "yti-tab" + (view === "trends" ? " yti-tab-active" : ""),
