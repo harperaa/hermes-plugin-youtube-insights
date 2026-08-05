@@ -6,7 +6,9 @@ import yti_insights
 import yti_store
 import yti_paths
 
-NOW = datetime(2026, 8, 1, 12, 0, tzinfo=timezone.utc)
+# dynamic "now": VPH math uses the real clock, so a pinned date lets
+# fixture ages drift and near-equal rankings flip as days pass
+NOW = datetime.now(timezone.utc)
 
 
 def _mk_video(conn, workspace: Path, vid: str, *, views=100, hours_old=10,
