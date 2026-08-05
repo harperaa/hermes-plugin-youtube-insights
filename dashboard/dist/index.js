@@ -1251,7 +1251,9 @@
   function YouTubeInsightsPage() {
     const [view, setView] = useState("trends");
     return h("div", { className: "yti-root" },
-      h("div", { style: { marginBottom: 14 } },
+      // same gutters as the page content (24px) and the Short Form top
+      // margin (28px)
+      h("div", { style: { padding: "28px 24px 0", marginBottom: 14 } },
         h("div", { style: { fontSize: 13, letterSpacing: 1.5,
                             color: "var(--color-muted-foreground, #9aa0b4)",
                             textTransform: "uppercase" } },
