@@ -271,3 +271,34 @@ def put_workspace_file(body: WorkspaceWrite) -> dict[str, Any]:
     if not result.get("ok"):
         raise HTTPException(status_code=400, detail=result.get("error"))
     return result
+
+
+# ---------------------------------------------------------------------------
+# Accomplishments — read by the acvc /accomplishments aggregator and shown
+# on the hermes Achievements page. Full credit when every item is done.
+# ---------------------------------------------------------------------------
+
+ACHIEVEMENT = {
+    "id": "long-form-scholar",
+    "name": "Long Form Scholar",
+    "icon": "🎬",
+    "description": "Study the long-form winners: track channels, pull "
+                   "their uploads, and distill the insights.",
+}
+
+
+def achievements_progress() -> dict:
+    conn = yti_store.connect()
+    try:
+        channels = conn.execute("SELECT COUNT(*) FROM channels").fetchone()[0]
+        videos = conn.execute("SELECT COUNT(*) FROM videos").fetchone()[0]
+        insights = conn.execute("SELECT COUNT(*) FROM insights").fetchone()[0]
+    finally:
+        conn.close()
+    items = [
+        {"id": "channel", "label": "Track a channel", "done": channels > 0},
+        {"id": "videos", "label": "Pull its uploads", "done": videos > 0},
+        {"id": "insights", "label": "Generate insights",
+         "done": insights > 0},
+    ]
+    return {"items": items, "complete": all(i["done"] for i in items)}
