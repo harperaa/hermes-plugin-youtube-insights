@@ -417,14 +417,14 @@ def create_produce_task(rel_path: str) -> dict[str, Any]:
     return {"ok": True, "taskId": task_id}
 
 
-def produce_states() -> dict[str, dict[str, Any]]:
-    """Per-script produce state for the Artifacts tab (open|stale|done)."""
+def _states_for(meta_key: str) -> dict[str, dict[str, Any]]:
+    """Per-key task state for a meta-map of kanban tasks (open|stale|done)."""
     kb = _kanban()
     if kb is None:
         return {}
     conn = yti_store.connect()
     try:
-        raw = yti_store.get_meta(conn, PRODUCE_META_KEY)
+        raw = yti_store.get_meta(conn, meta_key)
     finally:
         conn.close()
     try:
@@ -436,7 +436,7 @@ def produce_states() -> dict[str, dict[str, Any]]:
     out: dict[str, dict[str, Any]] = {}
     try:
         with kb.connect_closing() as conn_kb:
-            for rel_path, entry in mapping.items():
+            for key, entry in mapping.items():
                 task_id = entry.get("taskId")
                 if not task_id:
                     continue
@@ -448,7 +448,7 @@ def produce_states() -> dict[str, dict[str, Any]]:
                 ui = ("done" if status == "done"
                       else "stale" if (age is not None and age >= STALE_MINUTES)
                       else "open")
-                out[rel_path] = {
+                out[key] = {
                     "taskId": task_id,
                     "status": ui,
                     "kanbanStatus": status,
@@ -457,3 +457,257 @@ def produce_states() -> dict[str, dict[str, Any]]:
     except Exception:
         return out
     return out
+
+
+def produce_states() -> dict[str, dict[str, Any]]:
+    """Per-script produce state for the Artifacts tab (open|stale|done)."""
+    return _states_for(PRODUCE_META_KEY)
+
+
+# ---------------------------------------------------------------------------
+# Iterate: re-do ONE script with user steering (Artifacts tab ↻ button next
+# to Produce). Re-runs the content-creator on the script's own concept doc,
+# treating the current draft as the prior attempt and the user's steering as
+# direction, and overwrites the same file in place.
+# ---------------------------------------------------------------------------
+
+ITERATE_META_KEY = "iterate_tasks"
+ITERATE_SKILLS = (
+    "youtube-insights:youtube-content-creator",
+)
+
+
+def _concept_for_script(script_abs: Path) -> Path:
+    """script-outline.md -> concepts.md; -hot-take/-contrarian follow suit."""
+    m = re.match(r"script-outline(-[a-z0-9-]+)?\.md$", script_abs.name)
+    variant = (m.group(1) or "") if m else ""
+    return script_abs.parent / f"concepts{variant}.md"
+
+
+def _build_iterate_brief(script_abs: Path, steering: str) -> str:
+    concept_abs = _concept_for_script(script_abs)
+    steering = (steering or "").strip()
+    return "\n".join([
+        "## MANDATORY: Rewrite ONE existing script — same concept, better execution.",
+        "",
+        f"**Script to rewrite (overwrite in place):** {script_abs}",
+        f"**Concept doc:** {concept_abs}{' ✓' if concept_abs.exists() else ' (missing — derive the concept from the current script)'}",
+        "",
+        "### The user's steering (highest priority — this is WHY the rewrite exists)",
+        "",
+        "```",
+        steering or "(no steering text — improve format compliance and substance)",
+        "```",
+        "",
+        "### Steps (all yourself, this session — no subtasks)",
+        "",
+        "1. Read the current script draft AND the concept doc above. Read",
+        "   $HERMES_HOME/plugins-data/ai-cyber-value-creator/company-context.md",
+        "   for the ICP if present (default HERMES_HOME ~/.hermes; /opt/data",
+        "   in the container).",
+        "2. Load `youtube-insights:youtube-content-creator` and rewrite the",
+        "   script from the concept doc, treating the current draft as the",
+        "   prior attempt: keep what the steering praises or doesn't mention,",
+        "   fix what it criticizes, and follow the skill's format contract",
+        "   COMPLETELY — beat word budgets vs timestamps, flowing spoken",
+        "   lines, spoken-sentence HOOK INTO NEXT, loop ledger closed, Sound",
+        "   human rules, and the mandatory Phase 4b self-check pass.",
+        f"3. Overwrite exactly {script_abs} with the rewritten script — same",
+        "   file, no siblings, no suffixes. Do NOT touch the other variants",
+        "   or generate images.",
+        "4. Attach the rewritten file to THIS kanban task with `kanban_attach`,",
+        "   then `kanban_complete` with a summary of what the steering asked",
+        "   for and what changed.",
+    ])
+
+
+def create_iterate_task(rel_path: str, steering: str = "") -> dict[str, Any]:
+    """Create (or reuse a still-open) iterate task for one script file."""
+    kb = _kanban()
+    if kb is None:
+        return {"error": "kanban unavailable"}
+    try:
+        from . import yti_workspace
+    except ImportError:  # standalone import
+        import yti_workspace  # type: ignore
+    workspace = yti_paths.workspace_dir()
+    script_abs = yti_workspace.resolve_inside_workspace(workspace, rel_path or "")
+    if script_abs is None or not script_abs.exists():
+        return {"error": f"script not found in workspace: {rel_path}"}
+    if script_abs.suffix.lower() != ".md":
+        return {"error": "iterate runs on markdown script files"}
+    conn = yti_store.connect()
+    try:
+        mapping_raw = yti_store.get_meta(conn, ITERATE_META_KEY)
+        try:
+            mapping = json.loads(mapping_raw) if mapping_raw else {}
+            if not isinstance(mapping, dict):
+                mapping = {}
+        except ValueError:
+            mapping = {}
+        entry = mapping.get(rel_path) or {}
+        existing = entry.get("taskId")
+        with kb.connect_closing() as conn_kb:
+            if existing and _kanban_task_open(kb, conn_kb, existing):
+                age = _age_minutes(entry.get("createdAt"))
+                if age is not None and age < STALE_MINUTES:
+                    return {"ok": True, "taskId": existing, "already": True}
+            task_id = kb.create_task(
+                conn_kb,
+                title=f"Iterate: {script_abs.stem} ({script_abs.parent.name})",
+                body=_build_iterate_brief(script_abs, steering),
+                assignee=resolve_kanban_assignee(),
+                created_by="youtube-insights",
+                workspace_kind="scratch",
+                skills=list(ITERATE_SKILLS),
+                priority=10,
+            )
+        mapping[rel_path] = {"taskId": task_id, "createdAt": _now_iso()}
+        yti_store.set_meta(conn, ITERATE_META_KEY, json.dumps(mapping))
+    except Exception as exc:
+        return {"error": f"could not create the iterate task: {exc}"}
+    finally:
+        conn.close()
+    kick_dispatcher()
+    return {"ok": True, "taskId": task_id}
+
+
+def iterate_states() -> dict[str, dict[str, Any]]:
+    """Per-script iterate state for the Artifacts tab (open|stale|done)."""
+    return _states_for(ITERATE_META_KEY)
+
+
+# ---------------------------------------------------------------------------
+# Generate-from-topic: the Artifacts page Generate button. One kanban task
+# that grounds in the insight knowledge base (gap-finder Mode D) and writes
+# a full 3-variant script set into today's recommended folder.
+# ---------------------------------------------------------------------------
+
+TOPIC_META_KEY = "topic_tasks"
+TOPIC_SKILLS = (
+    "youtube-insights:youtube-gap-finder",
+    "youtube-insights:youtube-content-creator",
+)
+
+
+def _build_topic_brief(topic: str, context: str, out_dir: Path) -> str:
+    context = (context or "").strip()
+    return "\n".join([
+        "## MANDATORY: Generate a full 3-variant script set for ONE user-chosen topic.",
+        "",
+        f"**Topic:** {topic}",
+        f"**Output directory:** {out_dir}",
+        "",
+        "### The user's context / guidance (steering for every file below)",
+        "",
+        "```",
+        context or "(none given — steer by the company context ICP)",
+        "```",
+        "",
+        "You do ALL steps yourself in this session — no subtasks, no",
+        "delegation. Work autonomously.",
+        "",
+        "### Step 0 — Company context (ICP grounding)",
+        "Read $HERMES_HOME/plugins-data/ai-cyber-value-creator/",
+        "company-context.md (default HERMES_HOME ~/.hermes; /opt/data in",
+        "the container). If present, extract the ideal customer (ICP),",
+        "their current problems, and the positioning/voice — every concept",
+        "and script below is written FOR that ICP: the straight take",
+        "teaches their problem directly, the hot take confronts what they",
+        "believe or fear about it, and the contrarian take argues against",
+        "the prevailing advice they hear. If the file is missing, note it",
+        "in SUMMARY.md and proceed.",
+        "",
+        "### Step 1 — Concepts (gap-finder Mode D, topic-only)",
+        "Run the `youtube-insights:youtube-gap-finder` skill in **Mode D",
+        "(Topic-Only, Insights-Grounded)**. Pass explicitly:",
+        f"  - Topic: {topic}",
+        "  - Context/guidance: the user's block above",
+        f"  - Output directory: {out_dir}/",
+        "Ground the concepts in the insight knowledge base",
+        "(`yt_search_insights` — 3-5 queries around the topic) plus the",
+        "cited videos' analysis.md files where present. Mode D output is",
+        "EXACTLY 3 files:",
+        f"  - {out_dir}/concepts.md",
+        f"  - {out_dir}/concepts-hot-take.md",
+        f"  - {out_dir}/concepts-contrarian.md",
+        "",
+        "### Step 2 — Scripts (content-creator on ALL 3 concepts)",
+        "Run the `youtube-insights:youtube-content-creator` skill on each",
+        "concept file to produce matching script-outline files in the same",
+        "folder (script-outline.md, script-outline-hot-take.md,",
+        "script-outline-contrarian.md). Follow the skill's format contract",
+        "COMPLETELY — beat word budgets vs timestamps, flowing spoken lines,",
+        "spoken-sentence HOOK INTO NEXT, loop ledger closed, Sound human",
+        "rules, and the mandatory Phase 4b self-check pass. Speak to the",
+        "ICP from Step 0 in their vocabulary, honoring the user's guidance",
+        "block in every variant. Do NOT generate images — graphics run only",
+        "after a human approves the scripts.",
+        "",
+        "### Step 3 — Publish the artifacts",
+        f"Write {out_dir}/SUMMARY.md (topic, the user's guidance, the 3",
+        "angles, insights cited with source counts, file paths). Then attach",
+        "SUMMARY.md and all 3 script-outline files to THIS kanban task with",
+        "`kanban_attach`, and finish with `kanban_complete` whose summary",
+        "lists every file path. The files appear on the YouTube Insights",
+        "Artifacts tab — that is the review surface; leave them in place.",
+        "",
+        "### CRITICAL RULES",
+        f"- Every output file goes under exactly {out_dir}/ — no alternate paths.",
+        "- No yt_trending sweep, no fetching new videos — the insight",
+        "  knowledge base and existing analyses are the sources.",
+    ])
+
+
+def create_topic_task(topic: str, context: str = "") -> dict[str, Any]:
+    """Create (or reuse a still-open) topic-generation task."""
+    kb = _kanban()
+    if kb is None:
+        return {"error": "kanban unavailable"}
+    topic = (topic or "").strip()
+    if not topic:
+        return {"error": "topic required"}
+    slug = _slug(topic)
+    today = _now().strftime("%Y-%m-%d")
+    out_dir = yti_paths.workspace_dir() / "youtube" / today / "recommended" / slug
+    key = f"{today}/{slug}"
+    conn = yti_store.connect()
+    try:
+        mapping_raw = yti_store.get_meta(conn, TOPIC_META_KEY)
+        try:
+            mapping = json.loads(mapping_raw) if mapping_raw else {}
+            if not isinstance(mapping, dict):
+                mapping = {}
+        except ValueError:
+            mapping = {}
+        entry = mapping.get(key) or {}
+        existing = entry.get("taskId")
+        with kb.connect_closing() as conn_kb:
+            if existing and _kanban_task_open(kb, conn_kb, existing):
+                age = _age_minutes(entry.get("createdAt"))
+                if age is not None and age < STALE_MINUTES:
+                    return {"ok": True, "taskId": existing, "already": True}
+            task_id = kb.create_task(
+                conn_kb,
+                title=f"Topic Scripts: {topic}",
+                body=_build_topic_brief(topic, context, out_dir),
+                assignee=resolve_kanban_assignee(),
+                created_by="youtube-insights",
+                workspace_kind="scratch",
+                skills=list(TOPIC_SKILLS),
+                priority=10,
+            )
+        mapping[key] = {"taskId": task_id, "createdAt": _now_iso(),
+                        "topic": topic}
+        yti_store.set_meta(conn, TOPIC_META_KEY, json.dumps(mapping))
+    except Exception as exc:
+        return {"error": f"could not create the topic task: {exc}"}
+    finally:
+        conn.close()
+    kick_dispatcher()
+    return {"ok": True, "taskId": task_id, "outDir": str(out_dir)}
+
+
+def topic_states() -> dict[str, dict[str, Any]]:
+    """Per-topic generation state for the Artifacts page (open|stale|done)."""
+    return _states_for(TOPIC_META_KEY)

@@ -151,7 +151,7 @@ The hook should always be **3 sentences max** — a claim, a result, and a pull 
 Not spoken (the only non-line elements inside a beat):
 
 * `[Screen recording: description]` — production direction in brackets
-* `**-> HOOK INTO NEXT**:` — the forward-pulling transition (also plain text, no quotes)
+* `**-> HOOK INTO NEXT**:` — the forward-pulling transition. Still SPOKEN though: it must be a complete sentence or question the creator reads aloud, never a title fragment (plain text, no quotes)
 
 Produce the script following this structure:
 
@@ -213,29 +213,35 @@ Produce the script following this structure:
 - [Exact spoken line — the opening statement of this beat, plain text, no quotes]
 - [Exact spoken line that picks up exactly where the last one left off]
 - [Exact spoken line continuing the same thread — So... / Which means... / Because...]
+- [Exact spoken line — a concrete example, number, or story moment that makes the point land]
 - [Screen recording: description] (if applicable)
+- [Exact spoken line — what the example proves, in the creator's own words]
+- [Exact spoken line]
 - [Exact spoken line]
 - [Exact spoken line — the punchline or payoff the whole beat has been building to]
-- **-> HOOK INTO NEXT**: [Exact spoken line that creates curiosity about the next beat. Must tease what's coming without revealing it. Should make it impossible to stop watching.]
+- **-> HOOK INTO NEXT**: [A complete spoken sentence or question that opens curiosity about the next beat — words the creator actually says on camera, e.g. "So next, let me show you the five-minute ritual that makes this automatic." Never a title fragment.]
 - **Visual**: [description of the key visual/diagram for this beat — this drives image generation in Phase 6]
 ```
 
 #### Beat Writing Rules
 
-1. **Every beat is 4-8 plain-text spoken lines (no quotation marks).** Each line is a full conversational sentence or two — never a compressed fragment. Written for spoken delivery — short words, natural rhythm, no jargon without immediate explanation.
-2. **The beat must flow as ONE thread of thought.** Each bullet continues the previous bullet's sentence-level logic; the beat reads aloud as an unbroken monologue. If the bullets could be reordered without anyone noticing, the beat fails — rewrite it.
-3. **Every beat ends with `-> HOOK INTO NEXT`.** This is a forward-pulling transition — the exact words the creator says to bridge into the next beat, plain text. It must:
-   * Tease what's coming without fully revealing it
-   * Create a micro-curiosity gap (30-60 seconds to close)
+1. **The beat's word count must match its timestamp span.** Spoken delivery runs ~150 words per minute, so a 60-90 second beat needs **140-220 spoken words** (typically 7-12 lines); a 2-minute beat needs ~300. Count the spoken words (bullets only — not brackets, hooks count) and fix whichever is wrong: expand the beat or shrink the claimed time. A 3-4 line beat labeled 60-90 seconds is a lie the viewer's watch time will expose.
+2. **Expand with substance, never fluff.** Every beat carries at least TWO of: a concrete example walked through step by step, a real number or benchmark, a short story or moment ("last month a client shipped X and Y happened"), a failure case and what it looked like, a before/after contrast, or a mechanism explained at the level of what-actually-happens. Padding — restating the same claim in new words, throat-clearing, generic encouragement — is not expansion; cut it.
+3. **Every line is a full conversational sentence or two, plain text, no quotation marks** — never a compressed fragment. Written for spoken delivery: short words, natural rhythm, no jargon without immediate explanation.
+4. **The beat must flow as ONE thread of thought.** Each bullet continues the previous bullet's sentence-level logic; the beat reads aloud as an unbroken monologue. If the bullets could be reordered without anyone noticing, the beat fails — rewrite it.
+5. **Every beat ends with `-> HOOK INTO NEXT`, and it must be a complete spoken sentence or question.** These are words the creator reads aloud on camera — a fragment like "Five-minute startup ritual" is NOT a hook; the hook is "So next, let me walk you through the five-minute startup ritual that makes this automatic." It must:
+   * Be readable aloud as-is — subject, verb, and a reason to keep watching
+   * Tease what's coming without fully revealing it (a micro-curiosity gap the next beat closes)
    * Feel like a natural continuation, not a cliffhanger
-   * Use patterns like: "But that's just the mechanism. What it enables is..." / "And here's the part nobody talks about..." / "Now — that sounds great in theory. But it only works if..."
-4. **Production directions go in `[brackets]`.** Screen recordings, visual cues, b-roll notes. These are NOT spoken.
-5. **No meta-language.** Never write "explain the concept of X" or "describe how Y works." Write the actual explanation as spoken lines.
-6. **Never name other creators in spoken lines.** The source videos' authors, channel names, or shorthand tags for them (e.g. "Greg says...", "Herk's rule...") must NOT appear in anything the creator speaks — present the CONCEPTS as the creator's own synthesis ("one rule that keeps showing up...", "the operators getting this right..."). Source attribution lives only in the Metadata section's Insight sources field, never on camera.
-7. **Callbacks to the demo/earlier beats are explicit.** When closing an open loop, reference it directly: "Remember the gap I showed you in the demo?" / "This is how the system knew those six creators were saying the same thing."
-8. **Every beat MUST have a `Visual` field.** This is the description of the key diagram, screen recording, or visual asset for the beat. This field drives the image generation in Phase 6.
-9. **Aim for 8-12 beats** for a 12-16 minute video. Each beat is \~60-90 seconds. This creates natural attention resets throughout the video.
-10. **Vary the hook transitions.** Don't use the same "But here's the part nobody talks about..." pattern for every beat. Rotate between question hooks ("So why doesn't anyone build this?"), contrast hooks ("That sounds great in theory. In practice..."), consequence hooks ("And that changes everything about..."), and revelation hooks ("Which brings us to the real problem."). Repetitive transitions signal to the viewer's subconscious that the structure is formulaic.
+   * Use patterns like: "But that's just the mechanism — next I'll show you what it actually enables." / "And here's the part nobody talks about..." / "Now, that sounds great in theory. So let me show you where it breaks."
+6. **Keep a loop ledger, and close every loop before the script ends.** Every curiosity gap the script opens — the hook's promise, each open loop planted in the demo/setup, every HOOK INTO NEXT tease — is a debt. Track them as you write. Each HOOK INTO NEXT must be paid off within the next beat, and the demo/setup loops at their planned beats; anything still open gets closed explicitly in the Synthesis. A script that ends with an unpaid loop fails review — the viewer feels cheated even if they can't name why.
+7. **Production directions go in `[brackets]`.** Screen recordings, visual cues, b-roll notes. These are NOT spoken.
+8. **No meta-language.** Never write "explain the concept of X" or "describe how Y works." Write the actual explanation as spoken lines.
+9. **Never name other creators in spoken lines.** The source videos' authors, channel names, or shorthand tags for them (e.g. "Greg says...", "Herk's rule...") must NOT appear in anything the creator speaks — present the CONCEPTS as the creator's own synthesis ("one rule that keeps showing up...", "the operators getting this right..."). Source attribution lives only in the Metadata section's Insight sources field, never on camera.
+10. **Callbacks to the demo/earlier beats are explicit.** When closing an open loop, reference it directly: "Remember the gap I showed you in the demo?" / "This is how the system knew those six creators were saying the same thing."
+11. **Every beat MUST have a `Visual` field.** This is the description of the key diagram, screen recording, or visual asset for the beat. This field drives the image generation in Phase 6.
+12. **Aim for 8-12 beats** for a 12-16 minute video. Each beat is \~60-90 seconds — and per rule 1, its word count has to prove it.
+13. **Vary the hook transitions.** Don't use the same "But here's the part nobody talks about..." pattern for every beat. Rotate between question hooks ("So why doesn't anyone build this?"), contrast hooks ("That sounds great in theory. In practice..."), consequence hooks ("And that changes everything about..."), and revelation hooks ("Which brings us to the real problem."). Repetitive transitions signal to the viewer's subconscious that the structure is formulaic.
 
 #### Continuing the template:
 
@@ -298,6 +304,7 @@ Produce the script following this structure:
 - [ ] Frame rejection within first 60 seconds
 - [ ] Framework before features
 - [ ] 3+ open loops with staggered closure
+- [ ] EVERY open loop closed before the end (loop ledger paid off)
 - [ ] Bifurcation / self-identification moment
 - [ ] Honest caveats before close
 - [ ] Specificity anchor density (real data, real numbers)
@@ -305,7 +312,21 @@ Produce the script following this structure:
 - [ ] Quotable one-liner for social sharing
 - [ ] Zero mid-roll CTA interruptions
 - [ ] 8-12 beats with forward-pulling hooks between each
+- [ ] Beat word counts match their timestamps (~150 wpm)
 ```
+
+### Phase 4b: Self-Check Pass (mandatory — never skip)
+
+After drafting the full script and BEFORE saving it, reread the whole thing as the creator would — aloud-style, top to bottom — and fix what fails. This is a rewrite pass, not a checklist glance:
+
+1. **Line length.** Any spoken line under ~12 words that isn't a deliberate punch line (the beat's payoff, the hook's spike, the closing line) gets rewritten into a full conversational sentence — merge it into its neighbor or expand it with the specific it was gesturing at.
+2. **Flow.** Read each beat's bullets back to back with nothing added. Any seam where it stops sounding like one person talking — a topic jump, a missing "so/because/which means" — gets stitched or rewritten.
+3. **Word budget.** Count each beat's spoken words against its timestamp span at ~150 wpm. Expand thin beats with substance (rule 2) or fix the timestamps; recompute the running timeline so the Target length in Metadata is honest.
+4. **Hooks.** Every `-> HOOK INTO NEXT` must read aloud as a complete sentence or question. Any fragment gets rewritten into words the creator actually says.
+5. **Loop ledger.** List every curiosity loop the script opens (hook promise, demo/setup loops, every beat hook). Verify each one is explicitly paid off; close stragglers in the Synthesis or cut the tease.
+6. **Voice.** Sweep for banned AI-isms and rhetorical tics (the Sound human list), quotation marks on spoken lines, creator names, and meta-language. Fix every hit.
+
+Only when the script passes all six do you move to Phase 5.
 
 ### Phase 5: Save Script & Get User Approval
 

@@ -862,6 +862,21 @@
     );
   }
 
+  // Small shared modal: overlay + card, closes on overlay click or Escape.
+  function YtiModal(props) {
+    useEffect(function () {
+      function onKey(e) { if (e.key === "Escape") props.onClose(); }
+      window.addEventListener("keydown", onKey);
+      return function () { window.removeEventListener("keydown", onKey); };
+    }, []);
+    return h("div", {
+      className: "yti-modal-overlay",
+      onClick: function (e) { if (e.target === e.currentTarget) props.onClose(); },
+    },
+      h("div", { className: "yti-modal" }, props.children)
+    );
+  }
+
   function ArtifactsView() {
     var treeState = useState(null);
     var tree = treeState[0], setTree = treeState[1];
@@ -887,24 +902,46 @@
     var withProduced = producedFilterState[0], setWithProduced = producedFilterState[1];
     var copiedState = useState("");
     var copied = copiedState[0], setCopied = copiedState[1];
+    var iterState = useState({});
+    var iterate = iterState[0], setIterate = iterState[1];
+    var iterModalState = useState(false);
+    var iterModal = iterModalState[0], setIterModal = iterModalState[1];
+    var steeringState = useState("");
+    var steering = steeringState[0], setSteering = steeringState[1];
+    var topicStatesState = useState({});
+    var topicStates = topicStatesState[0], setTopicStates = topicStatesState[1];
+    var topicModalState = useState(false);
+    var topicModal = topicModalState[0], setTopicModal = topicModalState[1];
+    var topicState = useState("");
+    var topic = topicState[0], setTopic = topicState[1];
+    var topicCtxState = useState("");
+    var topicCtx = topicCtxState[0], setTopicCtx = topicCtxState[1];
 
     var loadTree = useCallback(function () {
       api("/workspace/tree").then(function (d) { setTree(d.tree || []); })
         .catch(function () { setTree([]); });
       api("/produce-states").then(function (d) { setProduce((d && d.states) || {}); })
         .catch(function () {});
+      api("/iterate-states").then(function (d) { setIterate((d && d.states) || {}); })
+        .catch(function () {});
+      api("/topic-states").then(function (d) { setTopicStates((d && d.states) || {}); })
+        .catch(function () {});
     }, []);
     useEffect(function () { loadTree(); }, [loadTree]);
 
-    // Poll while any produce run is open so the spinner resolves on its own.
-    var hasOpenProduce = Object.keys(produce).some(function (k) {
-      return produce[k] && produce[k].status === "open";
-    });
+    // Poll while any produce/iterate/topic run is open so spinners resolve.
+    function anyOpen(map) {
+      return Object.keys(map).some(function (k) {
+        return map[k] && map[k].status === "open";
+      });
+    }
+    var hasOpenProduce = anyOpen(produce);
+    var hasOpenRun = hasOpenProduce || anyOpen(iterate) || anyOpen(topicStates);
     useEffect(function () {
-      if (!hasOpenProduce) return undefined;
+      if (!hasOpenRun) return undefined;
       var id = window.setInterval(loadTree, 15000);
       return function () { window.clearInterval(id); };
-    }, [hasOpenProduce, loadTree]);
+    }, [hasOpenRun, loadTree]);
 
     useEffect(function () {
       setEditing(null);
@@ -981,6 +1018,28 @@
         .catch(function (e) { alert(String((e && e.message) || e)); });
     }
 
+    function iterateScript() {
+      if (!sel) return;
+      api("/iterate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path: sel.relPath, steering: steering }),
+      }).then(function () {
+        setIterModal(false); setSteering(""); loadTree();
+      }).catch(function (e) { alert(String((e && e.message) || e)); });
+    }
+
+    function generateTopic() {
+      if (!topic.trim()) return;
+      api("/generate-topic", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ topic: topic, context: topicCtx }),
+      }).then(function () {
+        setTopicModal(false); setTopic(""); setTopicCtx(""); loadTree();
+      }).catch(function (e) { alert(String((e && e.message) || e)); });
+    }
+
     function flattenFiles(nodes, out) {
       nodes.forEach(function (n) {
         if (n.kind === "file") out.push(n);
@@ -1046,6 +1105,11 @@
       ? "/chat?resume=" + encodeURIComponent(prod.sessionId) : null;
     var prodTask = prod && prod.taskId
       ? "/kanban#task=" + encodeURIComponent(prod.taskId) : null;
+    var iter = sel && iterate[sel.relPath];
+    var iterOpen = !!iter && iter.status === "open";
+    var iterChat = iterOpen && iter.sessionId
+      ? "/chat?resume=" + encodeURIComponent(iter.sessionId) : null;
+    var topicOpen = anyOpen(topicStates);
 
     // Preview header (paperclip deliverables parity): path · mtime · actions
     var previewHead = sel ? h("div", { className: "yti-preview-head" },
@@ -1061,6 +1125,17 @@
           onClick: produceScript,
           className: "yti-produce-btn",
         }, prodOpen ? "Producing…" : "Produce 🎥") : null,
+        isScript ? h(Button, {
+          size: "sm",
+          variant: "outline",
+          disabled: iterOpen,
+          title: iterOpen
+            ? "Iterating — the script is being rewritten from your steering"
+            : "Rewrite this script from its concept doc, steered by your input",
+          onClick: function () { setSteering(""); setIterModal(true); },
+        }, iterOpen ? "Iterating…" : "Iterate ↻") : null,
+        iterChat ? h("a", { className: "yti-gen-link", href: iterChat,
+          onClick: function (e) { e.preventDefault(); window.location.assign(iterChat); } }, "chat ↗") : null,
         prodChat ? h("a", { className: "yti-gen-link", href: prodChat,
           onClick: function (e) { e.preventDefault(); window.location.assign(prodChat); } }, "chat ↗") : null,
         prodTask ? h("a", { className: "yti-gen-link", href: prodTask,
@@ -1193,9 +1268,59 @@
       h("div", { className: "yti-artifacts-head" },
         h("h2", null, "Workspace Deliverables"),
         h("div", { className: "yti-actions" },
+          h(Button, {
+            size: "sm",
+            disabled: topicOpen,
+            title: topicOpen
+              ? "Generating — a topic script set is being written into today's recommended folder"
+              : "Generate a new 3-script set (standard, hot take, contrarian) on a topic of your choice, grounded in the insights database",
+            onClick: function () { setTopicModal(true); },
+          }, topicOpen ? "Generating…" : "Generate ✨"),
           h(Button, { size: "sm", variant: "outline", onClick: loadTree }, "Refresh")
         )
       ),
+      iterModal && sel ? h(YtiModal, { onClose: function () { setIterModal(false); } },
+        h("h3", null, "Iterate on this script"),
+        h("p", { className: "yti-modal-sub" },
+          "Rewrites ", h("code", null, sel.name), " in place from its concept doc — ",
+          "your steering below tells the writer what to do better."),
+        h("label", null, "Steering"),
+        h("textarea", {
+          value: steering,
+          autoFocus: true,
+          placeholder: "e.g. Beats 3 and 4 are thin — expand them with concrete examples. Make the hook harder-hitting. Drop the section on pricing.",
+          onChange: function (e) { setSteering(e.target.value); },
+        }),
+        h("div", { className: "yti-modal-actions" },
+          h(Button, { size: "sm", variant: "outline",
+            onClick: function () { setIterModal(false); } }, "Cancel"),
+          h(Button, { size: "sm", onClick: iterateScript }, "Iterate ↻"))
+      ) : null,
+      topicModal ? h(YtiModal, { onClose: function () { setTopicModal(false); } },
+        h("h3", null, "Generate scripts on a topic"),
+        h("p", { className: "yti-modal-sub" },
+          "Writes a full set — standard, hot take, and contrarian — into today's ",
+          h("code", null, "recommended/"), " folder, grounded in the insights ",
+          "database and your company context."),
+        h("label", null, "Topic"),
+        h("input", {
+          value: topic,
+          autoFocus: true,
+          placeholder: "e.g. Securing AI coding agents before they touch production",
+          onChange: function (e) { setTopic(e.target.value); },
+        }),
+        h("label", null, "Context / guidance (optional)"),
+        h("textarea", {
+          value: topicCtx,
+          placeholder: "Who it's for, the angle you want, anything to avoid…",
+          onChange: function (e) { setTopicCtx(e.target.value); },
+        }),
+        h("div", { className: "yti-modal-actions" },
+          h(Button, { size: "sm", variant: "outline",
+            onClick: function () { setTopicModal(false); } }, "Cancel"),
+          h(Button, { size: "sm", disabled: !topic.trim(),
+            onClick: generateTopic }, "Generate ✨"))
+      ) : null,
       h("div", { className: "yti-artifacts-body" },
         h("div", { className: "yti-tree" },
           h("div", { className: "yti-tree-tools" },

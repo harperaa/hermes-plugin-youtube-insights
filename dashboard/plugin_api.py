@@ -175,6 +175,46 @@ def get_produce_states() -> dict[str, Any]:
     return {"states": yti_generate.produce_states()}
 
 
+class IterateBody(BaseModel):
+    path: str
+    steering: str = ""
+
+
+@router.post("/iterate")
+def post_iterate(body: IterateBody) -> dict[str, Any]:
+    """Artifacts tab Iterate ↻ button: rewrite one script from its concept
+    doc, steered by the user's input (content-creator re-run in place)."""
+    result = yti_generate.create_iterate_task(body.path, body.steering)
+    if result.get("error"):
+        raise HTTPException(status_code=400, detail=result["error"])
+    return result
+
+
+@router.get("/iterate-states")
+def get_iterate_states() -> dict[str, Any]:
+    return {"states": yti_generate.iterate_states()}
+
+
+class TopicBody(BaseModel):
+    topic: str
+    context: str = ""
+
+
+@router.post("/generate-topic")
+def post_generate_topic(body: TopicBody) -> dict[str, Any]:
+    """Artifacts page Generate button: insights-grounded 3-variant script
+    set for a user-chosen topic, into today's recommended folder."""
+    result = yti_generate.create_topic_task(body.topic, body.context)
+    if result.get("error"):
+        raise HTTPException(status_code=400, detail=result["error"])
+    return result
+
+
+@router.get("/topic-states")
+def get_topic_states() -> dict[str, Any]:
+    return {"states": yti_generate.topic_states()}
+
+
 @router.post("/fetch")
 def post_fetch() -> dict[str, Any]:
     api_key = _transcript_api_key()

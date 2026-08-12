@@ -24,7 +24,7 @@ Find what everyone else is missing — then build video concepts around it.
 
 ## Modes
 
-This skill has three modes. **Pick one based on the caller's inputs and do not mix them.**
+This skill has four modes. **Pick one based on the caller's inputs and do not mix them.**
 
 ### Mode A — Single-Source Video (NEW, use when a specific video is named)
 
@@ -50,6 +50,17 @@ The legacy default: analyze the top-performing tracked videos across the workspa
 ### Mode C — Topic + URLs (ad-hoc)
 
 User provides a topic and/or specific video URLs not yet in the workspace. Transcripts must come through the plugin's own pipeline: track the channel (`yt_add_channel`) and run `yt_fetch_videos` to pull its recent videos + transcripts, then run the same Phase 2-5 workflow. If a URL's video is outside the fetch lookback window or its channel shouldn't be tracked, say so and ask the user how to proceed — there is no ad-hoc transcript fetcher; do not invent one.
+
+### Mode D — Topic-Only, Insights-Grounded (on-demand Generate button)
+
+Use this mode when the caller provides a **topic** (plus optional context/guidance) and NO source video or URLs — typically a kanban task created by the Artifacts page Generate button. Signals: the task brief names a topic and an explicit output directory, and says to ground in the insight knowledge base.
+
+In this mode:
+
+- **Sources are the insight knowledge base plus tracked analyses.** Call `yt_search_insights` with the topic and its adjacent phrasings (3-5 queries) to pull everything the tracked winners have said about it. Where an insight's source video has an `analysis.md` on disk, read that video's **Video Summary + Top 20 Insights** for depth. Do NOT run a `yt_trending` ranking sweep and do NOT fetch new videos.
+- **The caller's context/guidance is steering, not decoration** — it says who the video is for, what angle matters, or what to avoid. Honor it in every concept.
+- Run Phase 1.5 → 2 → 3 → 4 as normal, scoped to the topic: the gaps you exploit are what the tracked coverage of THIS topic leaves unsaid, unexplained, or unconnected. If the insight search comes back thin (fewer than ~5 relevant insights), say so in the concepts' evidence sections and lean on synthesis + the company context rather than inventing sources.
+- Output is **3 concept files in ONE topic folder** (same shape as Mode A: `concepts.md`, `concepts-hot-take.md`, `concepts-contrarian.md`). Use the output directory the caller provides verbatim. Do not invent alternate paths.
 
 ---
 
@@ -85,6 +96,8 @@ User provides a topic and/or specific video URLs not yet in the workspace. Trans
    ```
 
 **Mode C (topic + URLs):** get transcripts via the plugin pipeline (`yt_add_channel` + `yt_fetch_videos` — see the Mode C description above), then produce stub analysis (Video Summary + Top 20 Insights) for each video. Proceed as in Mode B.
+
+**Mode D (topic-only):** no video gathering — the sources ARE the insight knowledge base. Run 3-5 `yt_search_insights` queries around the topic (the topic itself, synonyms, adjacent problems), then read the `analysis.md` Video Summary + Top 20 Insights of the videos those insights cite where present on disk. Report what you found (insight count, source spread) and proceed to Phase 1.5.
 
 ### Phase 1.5: Query the Insight Knowledge Base
 
@@ -149,6 +162,8 @@ Compare all insight inventories across videos and identify:
 ### Phase 4: Build Video Concepts
 
 **Mode A (single source):** produce **1 topic** derived from the named source video — a similar-but-unique angle — in **3 format variants**. Total: 3 concept files in the caller-provided output directory.
+
+**Mode D (topic-only):** produce **1 topic** — the caller's topic, angled by the caller's context/guidance and the gaps found in the insight base — in **3 format variants**. Total: 3 concept files in the caller-provided output directory.
 
 **Mode B / C:** produce **3 topics**, each exploiting a different cluster of gaps, × **3 format variants** per topic. Total: 9 concept files.
 
@@ -225,6 +240,8 @@ youtube/{today}/recommended/{source-title-slug}/
 ```
 
 The `{source-title-slug}` comes from the source video's title — the caller will usually supply the exact path. If a folder already exists at that path from a prior run, overwrite the 3 concept files in place; do NOT create a sibling folder with a suffix and do NOT skip because "content already exists." Single-source runs are idempotent and authoritative for their source video.
+
+**Mode D (topic-only) — exactly 3 files in 1 folder:** same shape as Mode A, in the caller-provided output directory (typically `youtube/{today}/recommended/{topic-slug}/`). Same overwrite-in-place rule.
 
 **Mode B / C — exactly 9 files in 3 folders:**
 
