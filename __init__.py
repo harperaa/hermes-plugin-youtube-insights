@@ -30,6 +30,7 @@ _TOOLS = (
     ("yt_add_insight", schemas.YT_ADD_INSIGHT, tools.yt_add_insight, None),
     ("yt_search_insights", schemas.YT_SEARCH_INSIGHTS,
      tools.yt_search_insights, None),
+    ("yt_lint_script", schemas.YT_LINT_SCRIPT, tools.yt_lint_script, None),
 )
 
 
@@ -82,9 +83,31 @@ def _on_kanban_task_completed(task_id: str, **kwargs) -> None:
     try:
         conn = yti_store.connect()
         result = yti_analysis.handle_kanban_completion(conn, task_id)
-        conn.close()
         if result is None:
+            # Not an analysis task — maybe a script task (generation/topic/
+            # iterate): those must lint clean, not just complete.
+            try:
+                from . import yti_generate
+            except ImportError:  # pragma: no cover
+                import yti_generate  # type: ignore
+            script_result = yti_generate.handle_script_completion(conn, task_id)
+            conn.close()
+            if script_result is None:
+                return
+            if script_result.get("clean"):
+                logger.info("script task %s lints clean", task_id)
+            elif script_result.get("retry"):
+                logger.warning(
+                    "script task %s failed the format linter (%s findings) — "
+                    "fix task #%s opened (retry %s)", task_id,
+                    script_result.get("findings"),
+                    script_result.get("fixTaskId"), script_result.get("retry"))
+            elif script_result.get("exhausted"):
+                logger.error("script task %s exhausted lint retries: %s "
+                             "findings remain", task_id,
+                             script_result.get("findings"))
             return
+        conn.close()
         if result.get("ok"):
             logger.info("analysis task %s validated: %s insights",
                         task_id, result.get("insights"))

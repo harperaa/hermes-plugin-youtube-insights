@@ -133,3 +133,25 @@ YT_SEARCH_INSIGHTS = {
         "required": ["query"],
     },
 }
+
+YT_LINT_SCRIPT = {
+    "name": "yt_lint_script",
+    "description": (
+        "Lint a produced script-outline markdown file against the "
+        "content-creator format contract: beat word budgets vs timestamps "
+        "(~150 wpm), flowing spoken lines (no terse fragments), "
+        "spoken-sentence HOOK INTO NEXT lines, Visual fields, no quotation "
+        "marks, no AI-isms. Pass a workspace-relative or absolute path to "
+        "one script file, or a topic folder to lint all three variants. "
+        "Returns {ok, findings}. A script task is NOT done until this "
+        "reports ok:true for every script it produced."
+    ),
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "path": {"type": "string",
+                     "description": "script-outline*.md file or topic folder"},
+        },
+        "required": ["path"],
+    },
+}

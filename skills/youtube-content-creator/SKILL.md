@@ -139,6 +139,31 @@ The hook should always be **3 sentences max** — a claim, a result, and a pull 
 
 **A beat is one continuous piece of TALK, not a list of concepts.** Write the beat as a flowing monologue first, then break it into bullets at natural breath points. Every bullet must continue the thought of the bullet before it — use the connective tissue of real speech (So... / Which means... / And here's the thing... / Because...). THE TEST: read the beat's bullets aloud back to back with nothing added; if it doesn't sound like one person talking without gaps — if any bullet could be shuffled elsewhere without anyone noticing — it's a concept list, rewrite it. Telegraphic fragments ("Diamonds and skeptic checkers are real upgrades.") are banned; a spoken line is a full conversational sentence or two, typically 15-35 words, with natural contractions and rhythm. If it sounds like a TED-talk slide or a tweet, make it sound like someone explaining something to a smart friend.
 
+**Worked example — this is the difference that matters.** A beat that FAILS the contract (concept-list fragments, ~35 words claiming 80 seconds, fragment hook):
+
+```markdown
+## Beat 5: CONTRACT + ACCOUNTABILITY (6:40-8:00)
+- Pilot contract scope is the liability boundary customers feel.
+- Prefer under-scoped pilots to over-scoped ceremonies.
+- Accountability partners beat solitary oaths for founders building alone.
+- Conditional GREEN with expiry is a feature.
+- **-> HOOK INTO NEXT**: Higher-order choice rule.
+```
+
+The SAME beat rewritten to pass — one thread of talk, ~200 words for 80 seconds, a story and a concrete mechanism, a spoken hook:
+
+```markdown
+## Beat 5: CONTRACT + ACCOUNTABILITY (6:40-8:00)
+- Here's the part nobody warns you about: your pilot contract's scope is the only liability boundary your customer actually feels — not your intentions, not your roadmap, the words on that one page.
+- So when you're tempted to write a big impressive scope to look serious, flip it. A deliberately under-scoped pilot — three deliverables, two weeks, one success metric — beats an over-scoped ceremony every single time, because you can actually keep it.
+- I watched a founder promise a full security program in a pilot and deliver forty percent of it. The customer didn't remember the forty percent that worked; they remembered the sixty percent that was promised and missing.
+- And if you're building alone, don't rely on willpower to hold the line. Get one accountability partner who reviews every scope before it goes out — a person you'd be embarrassed to show a bloated contract to does more than any oath you swear to yourself.
+- One more trick: make your approval a conditional green with an expiry date. "Yes, for ninety days, then we re-review" isn't hedging — it's the feature that lets you say yes fast without saying yes forever.
+- **-> HOOK INTO NEXT**: Now, all of this assumes you can decide what makes the cut in the first place — so next, let me give you the one rule that makes those choices for you.
+```
+
+Every produced script is checked mechanically against this contract by the `yt_lint_script` tool (word budgets vs timestamps, fragment lines, fragment hooks) — run it on every script you write and fix every finding before calling the script done.
+
 **Sound human — kill the AI voice.** Spoken lines must pass as words a real person would say on camera, unscripted-sounding even though they're scripted. Concretely:
 
 * **Banned AI-isms** — these words and constructions never appear in a spoken line: delve, dive into / deep dive, unpack, unlock, leverage (as a verb), robust, seamless, elevate, empower, game-changer / game-changing, revolutionize, "in today's fast-paced world", "in the ever-evolving landscape of", "it's important to note", "at the end of the day" (as filler), "whether you're a X or a Y", tapestry, journey (metaphorical), navigate (metaphorical), harness, foster, myriad, plethora.

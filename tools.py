@@ -157,3 +157,28 @@ def yt_search_insights(args: dict, **kwargs) -> str:
         return json.dumps(result)
     except Exception as exc:  # noqa: BLE001
         return _err(str(exc))
+
+
+def yt_lint_script(args: dict, **kwargs) -> str:
+    """Format-lint one produced script (or a topic folder of them)."""
+    raw = str(args.get("path") or "").strip()
+    if not raw:
+        return _err("path is required")
+    try:
+        try:
+            from . import yti_lint, yti_paths, yti_workspace
+        except ImportError:  # standalone import
+            import yti_lint, yti_paths, yti_workspace  # type: ignore
+        from pathlib import Path
+        p = Path(raw).expanduser()
+        if not p.is_absolute():
+            workspace = yti_paths.workspace_dir()
+            resolved = yti_workspace.resolve_inside_workspace(workspace, raw)
+            if resolved is None:
+                return _err(f"path escapes the workspace: {raw}")
+            p = resolved
+        if p.is_dir():
+            return json.dumps(yti_lint.lint_folder(p))
+        return json.dumps(yti_lint.lint_file(p))
+    except Exception as exc:  # noqa: BLE001
+        return _err(str(exc))

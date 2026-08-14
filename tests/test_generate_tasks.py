@@ -212,3 +212,75 @@ def test_pipeline_state_shape(conn, tmp_home, monkeypatch):
     jobs_mod.resolve_job_ref = lambda ref: None
     state = api.get_pipeline_state()
     assert state == {"available": False, "running": False}
+
+
+# ---------------------------------------------------------------------------
+# Script-completion lint gate
+# ---------------------------------------------------------------------------
+
+BAD_SCRIPT = """## Beat 1: X (0:00-1:30)
+- Terse fragment one.
+- Terse fragment two.
+- **-> HOOK INTO NEXT**: Fragment.
+"""
+
+
+def test_script_completion_opens_fix_task(conn, tmp_home, gen_kanban):
+    result = yti_generate.create_topic_task("Lint Gate Topic")
+    tid = result["taskId"]
+    out_dir = Path(result["outDir"])
+    out_dir.mkdir(parents=True, exist_ok=True)
+    for name in ("script-outline.md", "script-outline-hot-take.md",
+                 "script-outline-contrarian.md"):
+        (out_dir / name).write_text(BAD_SCRIPT)
+    gen_kanban.tasks[tid]["status"] = "done"
+    r = yti_generate.handle_script_completion(conn, tid)
+    assert r and r.get("retry") == 1 and r.get("fixTaskId")
+    fix = gen_kanban.tasks[r["fixTaskId"]]
+    assert "yt_lint_script" in fix["body"]
+    assert "thin_beat" in fix["body"] or "fragment" in fix["body"]
+    # second failure -> retry 2; third -> exhausted
+    gen_kanban.tasks[r["fixTaskId"]]["status"] = "done"
+    r2 = yti_generate.handle_script_completion(conn, r["fixTaskId"])
+    assert r2 and r2.get("retry") == 2
+    gen_kanban.tasks[r2["fixTaskId"]]["status"] = "done"
+    r3 = yti_generate.handle_script_completion(conn, r2["fixTaskId"])
+    assert r3 and r3.get("exhausted")
+
+
+def test_script_completion_clean_passes(conn, tmp_home, gen_kanban):
+    good = (
+        "## Beat 1: X (0:00-1:00)\n"
+        "- This opening line is a full conversational sentence with enough "
+        "words to sound like a person talking to a smart friend on camera.\n"
+        "- And this second line continues that exact thought with more "
+        "substance, a concrete number like forty percent, and natural "
+        "speech rhythm carrying it forward.\n"
+        "- So here's the payoff line that lands the whole beat with a "
+        "concrete claim the viewer can repeat to someone else tomorrow.\n"
+        "- Which is why the last stretch of this beat keeps talking through "
+        "the consequence, because the word budget for a full minute of "
+        "speech needs roughly one hundred and fifty words of real talk.\n"
+        "- That's also the reason we keep adding complete sentences here, "
+        "so the mechanical check sees a beat that genuinely fills its "
+        "claimed sixty seconds of screen time without any padding words.\n"
+        "- And to be honest, hitting that number with substance is exactly "
+        "what separates a script you can record from a list of headlines "
+        "nobody could ever read aloud.\n"
+        "- **-> HOOK INTO NEXT**: So next, let me show you the one rule "
+        "that makes this automatic every single time.\n"
+        "- **Visual**: diagram\n")
+    result = yti_generate.create_topic_task("Lint Gate Clean")
+    tid = result["taskId"]
+    out_dir = Path(result["outDir"])
+    out_dir.mkdir(parents=True, exist_ok=True)
+    for name in ("script-outline.md", "script-outline-hot-take.md",
+                 "script-outline-contrarian.md"):
+        (out_dir / name).write_text(good)
+    gen_kanban.tasks[tid]["status"] = "done"
+    r = yti_generate.handle_script_completion(conn, tid)
+    assert r and r.get("clean") is True
+
+
+def test_script_completion_ignores_unknown_tasks(conn, tmp_home, gen_kanban):
+    assert yti_generate.handle_script_completion(conn, "t_unknown") is None

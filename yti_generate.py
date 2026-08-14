@@ -172,6 +172,18 @@ def _build_brief(video: dict[str, Any], workspace: Path) -> str:
         "images — the",
         "graphics stage runs only after a human approves the scripts.",
         "",
+        "### Step 2.5 — Format gate (yt_lint_script, NOT optional)",
+        "Every spoken bullet must be a full conversational sentence or two",
+        "(15-35 words) that CONTINUES the previous bullet's thought — read",
+        "the beat aloud; if it sounds like a list of headlines, rewrite it.",
+        "Each beat's word count must match its timestamps (~150 wpm), and",
+        "every HOOK INTO NEXT is a complete spoken sentence, never a title",
+        "fragment. Then PROVE it: run the `yt_lint_script` tool on each of",
+        "the 3 script files and fix every finding, re-running until all 3",
+        "report ok:true. A completion validator re-lints after you finish —",
+        "a script that fails it re-opens this work as a fix task, so do not",
+        "complete until the linter is clean.",
+        "",
         "### Step 3 — Publish the artifacts",
         f"Write {out_dir}/SUMMARY.md (source video, the 3 concepts' titles and",
         "angles, evidence/insights cited, file paths). Then attach SUMMARY.md",
@@ -226,7 +238,11 @@ def create_generation_task(video_id: str) -> dict[str, Any]:
                 skills=list(GENERATION_SKILLS),
                 priority=10,  # user-initiated: jump the queue
             )
-        mapping[video_id] = {"taskId": task_id, "createdAt": _now_iso()}
+        out_dir = (yti_paths.workspace_dir() / "youtube"
+                   / _now().strftime("%Y-%m-%d") / "recommended"
+                   / _slug(video.get("title") or video_id))
+        mapping[video_id] = {"taskId": task_id, "createdAt": _now_iso(),
+                             "outDir": str(out_dir)}
         _save_map(conn, mapping)
     except Exception as exc:
         return {"error": f"could not create the generation task: {exc}"}
@@ -515,7 +531,11 @@ def _build_iterate_brief(script_abs: Path, steering: str) -> str:
         f"3. Overwrite exactly {script_abs} with the rewritten script — same",
         "   file, no siblings, no suffixes. Do NOT touch the other variants",
         "   or generate images.",
-        "4. Attach the rewritten file to THIS kanban task with `kanban_attach`,",
+        "4. Format gate: run the `yt_lint_script` tool on the rewritten file",
+        "   and fix every finding, re-running until it reports ok:true. A",
+        "   completion validator re-lints after you finish — do not complete",
+        "   while findings remain.",
+        "5. Attach the rewritten file to THIS kanban task with `kanban_attach`,",
         "   then `kanban_complete` with a summary of what the steering asked",
         "   for and what changed.",
     ])
@@ -644,6 +664,15 @@ def _build_topic_brief(topic: str, context: str, out_dir: Path) -> str:
         "block in every variant. Do NOT generate images — graphics run only",
         "after a human approves the scripts.",
         "",
+        "### Step 2.5 — Format gate (yt_lint_script, NOT optional)",
+        "Every spoken bullet is a full conversational sentence or two",
+        "(15-35 words) continuing the previous bullet's thought; each beat's",
+        "word count matches its timestamps (~150 wpm); every HOOK INTO NEXT",
+        "is a complete spoken sentence. PROVE it: run the `yt_lint_script`",
+        "tool on all 3 script files and fix every finding, re-running until",
+        "each reports ok:true. A completion validator re-lints after you",
+        "finish and re-opens failing work — do not complete until clean.",
+        "",
         "### Step 3 — Publish the artifacts",
         f"Write {out_dir}/SUMMARY.md (topic, the user's guidance, the 3",
         "angles, insights cited with source counts, file paths). Then attach",
@@ -698,7 +727,7 @@ def create_topic_task(topic: str, context: str = "") -> dict[str, Any]:
                 priority=10,
             )
         mapping[key] = {"taskId": task_id, "createdAt": _now_iso(),
-                        "topic": topic}
+                        "topic": topic, "outDir": str(out_dir)}
         yti_store.set_meta(conn, TOPIC_META_KEY, json.dumps(mapping))
     except Exception as exc:
         return {"error": f"could not create the topic task: {exc}"}
@@ -711,3 +740,134 @@ def create_topic_task(topic: str, context: str = "") -> dict[str, Any]:
 def topic_states() -> dict[str, dict[str, Any]]:
     """Per-topic generation state for the Artifacts page (open|stale|done)."""
     return _states_for(TOPIC_META_KEY)
+
+
+# ---------------------------------------------------------------------------
+# Completion validation: script tasks must LINT CLEAN, not just complete.
+# Mirrors the analysis validator: when a generation/topic/iterate worker
+# finishes, lint what it wrote; on findings open ONE fix task (max 2) whose
+# brief embeds the exact linter output.
+# ---------------------------------------------------------------------------
+
+LINT_MAX_RETRIES = 2
+FIX_SKILLS = ("youtube-insights:youtube-content-creator",)
+
+
+def _lint_targets_for_entry(meta_key: str, key: str,
+                            entry: dict[str, Any]) -> list[Path]:
+    try:
+        from . import yti_lint  # noqa: F401  (import check)
+    except ImportError:
+        import yti_lint  # type: ignore # noqa: F401
+    if meta_key == ITERATE_META_KEY:
+        p = yti_paths.workspace_dir() / key
+        return [p]
+    out_dir = entry.get("outDir")
+    if not out_dir:
+        return []
+    d = Path(out_dir)
+    return [d / n for n in ("script-outline.md", "script-outline-hot-take.md",
+                            "script-outline-contrarian.md")]
+
+
+def _lint_paths(paths: list[Path]) -> list[dict[str, Any]]:
+    try:
+        from . import yti_lint
+    except ImportError:
+        import yti_lint  # type: ignore
+    findings: list[dict[str, Any]] = []
+    for p in paths:
+        if not p.exists():
+            findings.append({"path": str(p), "section": "(file)",
+                             "kind": "missing_file",
+                             "message": f"{p.name} was not produced at {p}"})
+            continue
+        result = yti_lint.lint_file(p)
+        for f in result["findings"]:
+            findings.append({"path": str(p), **f})
+    return findings
+
+
+def _build_fix_brief(findings: list[dict[str, Any]]) -> str:
+    by_path: dict[str, list[dict[str, Any]]] = {}
+    for f in findings:
+        by_path.setdefault(f["path"], []).append(f)
+    lines = [
+        "## MANDATORY: Fix format-linter findings in already-produced scripts.",
+        "",
+        "A worker completed these scripts, but they FAIL the format contract",
+        "(the youtube-content-creator skill's Phase 4 rules). Rewrite each",
+        "listed file IN PLACE until `yt_lint_script` reports ok:true for it.",
+        "This is a rewrite for flow and substance — keep the topic, angle,",
+        "structure, and Visual fields; fix exactly what the findings say:",
+        "expand thin beats with real substance (worked examples, numbers,",
+        "stories, failure cases — never filler), merge fragment bullets into",
+        "full conversational sentences that continue one thread of thought,",
+        "and turn fragment hooks into complete spoken sentences.",
+        "",
+    ]
+    for path, items in by_path.items():
+        lines.append(f"### {path}")
+        for f in items:
+            lines.append(f"- [{f['kind']}] {f['section']}: {f['message']}")
+        lines.append("")
+    lines += [
+        "### Steps",
+        "1. Read each file and the findings above.",
+        "2. Rewrite in place (same filenames — no siblings, no subfolders).",
+        "3. Run `yt_lint_script` on each file; repeat until every file is",
+        "   ok:true. Do NOT complete while any finding remains.",
+        "4. `kanban_complete` with a summary of what changed per file.",
+    ]
+    return "\n".join(lines)
+
+
+def handle_script_completion(conn, kanban_task_id: str) -> Optional[dict[str, Any]]:
+    """kanban_task_completed hook: when a generation/topic/iterate task
+    finishes, lint its scripts; open a fix task on findings (max 2)."""
+    kb = _kanban()
+    if kb is None:
+        return None
+    for meta_key in (GENERATION_META_KEY, TOPIC_META_KEY, ITERATE_META_KEY):
+        raw = yti_store.get_meta(conn, meta_key)
+        try:
+            mapping = json.loads(raw) if raw else {}
+        except ValueError:
+            continue
+        if not isinstance(mapping, dict):
+            continue
+        for key, entry in mapping.items():
+            if not isinstance(entry, dict):
+                continue
+            if entry.get("taskId") != kanban_task_id:
+                continue
+            targets = _lint_targets_for_entry(meta_key, key, entry)
+            if not targets:
+                return {"ok": True, "skipped": "no lint targets"}
+            findings = _lint_paths(targets)
+            if not findings:
+                return {"ok": True, "clean": True, "key": key}
+            retries = int(entry.get("lintRetries") or 0)
+            if retries >= LINT_MAX_RETRIES:
+                return {"ok": False, "exhausted": True, "key": key,
+                        "findings": len(findings)}
+            with kb.connect_closing() as conn_kb:
+                fix_id = kb.create_task(
+                    conn_kb,
+                    title=f"Fix script format: {key.rsplit('/', 1)[-1]}",
+                    body=_build_fix_brief(findings),
+                    assignee=resolve_kanban_assignee(),
+                    created_by="youtube-insights",
+                    workspace_kind="scratch",
+                    skills=list(FIX_SKILLS),
+                    priority=10,
+                )
+            entry["taskId"] = fix_id
+            entry["lintRetries"] = retries + 1
+            entry["createdAt"] = _now_iso()
+            mapping[key] = entry
+            yti_store.set_meta(conn, meta_key, json.dumps(mapping))
+            kick_dispatcher()
+            return {"ok": False, "retry": retries + 1, "fixTaskId": fix_id,
+                    "key": key, "findings": len(findings)}
+    return None

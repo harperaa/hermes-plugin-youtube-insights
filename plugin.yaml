@@ -29,6 +29,7 @@ provides_tools:
   - yt_trigger_analysis
   - yt_add_insight
   - yt_search_insights
+  - yt_lint_script
 
 provides_hooks:
   - kanban_task_completed
