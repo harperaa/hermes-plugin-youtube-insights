@@ -916,6 +916,18 @@
     var topic = topicState[0], setTopic = topicState[1];
     var topicCtxState = useState("");
     var topicCtx = topicCtxState[0], setTopicCtx = topicCtxState[1];
+    var pipeState = useState({ available: false, running: false });
+    var pipeline = pipeState[0], setPipeline = pipeState[1];
+    // The cron scheduler starts the execution on its next tick (up to ~1 min
+    // after the trigger), so hold "Running…" from the click until the state
+    // endpoint actually reports it (or 2 min pass — trigger presumed lost).
+    var kickedState = useState(0);
+    var kickedAt = kickedState[0], setKickedAt = kickedState[1];
+    var pipelineRunning = !!pipeline.running ||
+      (kickedAt > 0 && Date.now() - kickedAt < 120000);
+    useEffect(function () {
+      if (pipeline.running && kickedAt) setKickedAt(0);
+    }, [pipeline.running]);
 
     var loadTree = useCallback(function () {
       api("/workspace/tree").then(function (d) { setTree(d.tree || []); })
@@ -925,6 +937,8 @@
       api("/iterate-states").then(function (d) { setIterate((d && d.states) || {}); })
         .catch(function () {});
       api("/topic-states").then(function (d) { setTopicStates((d && d.states) || {}); })
+        .catch(function () {});
+      api("/pipeline-state").then(function (d) { setPipeline(d || {}); })
         .catch(function () {});
     }, []);
     useEffect(function () { loadTree(); }, [loadTree]);
@@ -936,7 +950,8 @@
       });
     }
     var hasOpenProduce = anyOpen(produce);
-    var hasOpenRun = hasOpenProduce || anyOpen(iterate) || anyOpen(topicStates);
+    var hasOpenRun = hasOpenProduce || anyOpen(iterate) || anyOpen(topicStates) ||
+      pipelineRunning;
     useEffect(function () {
       if (!hasOpenRun) return undefined;
       var id = window.setInterval(loadTree, 15000);
@@ -1027,6 +1042,12 @@
       }).then(function () {
         setIterModal(false); setSteering(""); loadTree();
       }).catch(function (e) { alert(String((e && e.message) || e)); });
+    }
+
+    function runPipeline() {
+      api("/pipeline-run", { method: "POST" })
+        .then(function () { setKickedAt(Date.now()); loadTree(); })
+        .catch(function (e) { alert(String((e && e.message) || e)); });
     }
 
     function generateTopic() {
@@ -1268,6 +1289,14 @@
       h("div", { className: "yti-artifacts-head" },
         h("h2", null, "Workspace Deliverables"),
         h("div", { className: "yti-actions" },
+          pipeline.available ? h(Button, {
+            size: "sm",
+            disabled: pipelineRunning,
+            title: pipelineRunning
+              ? "Running — the content pipeline is finding gaps and writing 3 new topic script sets"
+              : "Run the twice-daily content pipeline now: find fresh gaps across tracked videos and write 3 new topics x 3 scripts into today's recommended folder",
+            onClick: runPipeline,
+          }, pipelineRunning ? "Running…" : "3 More 🔁") : null,
           h(Button, {
             size: "sm",
             disabled: topicOpen,

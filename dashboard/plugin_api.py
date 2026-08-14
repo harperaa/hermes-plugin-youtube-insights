@@ -215,6 +215,54 @@ def get_topic_states() -> dict[str, Any]:
     return {"states": yti_generate.topic_states()}
 
 
+@router.post("/pipeline-run")
+def post_pipeline_run() -> dict[str, Any]:
+    """Artifacts tab '3 More' button: run the twice-daily content pipeline
+    on demand (gap-finder sweep -> 3 new topics x 3 scripts each)."""
+    _migrate_cron_prompt()
+    try:
+        from cron import jobs as cron_jobs
+    except ImportError:
+        raise HTTPException(503, "cron unavailable")
+    job = cron_jobs.resolve_job_ref("youtube-content-pipeline")
+    if not job:
+        raise HTTPException(404, "youtube-content-pipeline job not found")
+    state = _pipeline_state(job)
+    if state["running"]:
+        return {"ok": True, "alreadyRunning": True}
+    res = cron_jobs.trigger_job(job["id"])
+    if not res:
+        raise HTTPException(500, "could not trigger the pipeline job")
+    return {"ok": True}
+
+
+def _pipeline_state(job: dict) -> dict[str, Any]:
+    try:
+        from cron import executions as cron_execs
+        rows = cron_execs.list_executions(job_id=job["id"], limit=1)
+    except Exception:
+        rows = []
+    last = rows[0] if rows else {}
+    return {
+        "running": (last.get("status") == "running"),
+        "lastStatus": last.get("status"),
+        "lastStarted": str(last.get("started_at") or "") or None,
+        "lastFinished": str(last.get("finished_at") or "") or None,
+    }
+
+
+@router.get("/pipeline-state")
+def get_pipeline_state() -> dict[str, Any]:
+    try:
+        from cron import jobs as cron_jobs
+    except ImportError:
+        return {"available": False, "running": False}
+    job = cron_jobs.resolve_job_ref("youtube-content-pipeline")
+    if not job:
+        return {"available": False, "running": False}
+    return {"available": True, **_pipeline_state(job)}
+
+
 @router.post("/fetch")
 def post_fetch() -> dict[str, Any]:
     api_key = _transcript_api_key()

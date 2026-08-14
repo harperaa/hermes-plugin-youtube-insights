@@ -146,3 +146,69 @@ def test_states_reflect_task_lifecycle(conn, tmp_home, gen_kanban, monkeypatch):
     key = next(iter(tstates))
     assert tstates[key]["taskId"] == tres["taskId"]
     assert tstates[key]["status"] == "open"
+
+
+# ---------------------------------------------------------------------------
+# Pipeline on-demand trigger ("3 More" button)
+# ---------------------------------------------------------------------------
+
+def _load_plugin_api(monkeypatch, jobs_mod, execs_mod):
+    import importlib.util as ilu
+    import sys
+    import types
+    cron_pkg = types.ModuleType("cron")
+    cron_pkg.jobs = jobs_mod
+    cron_pkg.executions = execs_mod
+    monkeypatch.setitem(sys.modules, "cron", cron_pkg)
+    monkeypatch.setitem(sys.modules, "cron.jobs", jobs_mod)
+    monkeypatch.setitem(sys.modules, "cron.executions", execs_mod)
+    root = Path(__file__).resolve().parent.parent
+    spec = ilu.spec_from_file_location(
+        "pa_pipeline_test", str(root / "dashboard" / "plugin_api.py"))
+    mod = ilu.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def _cron_stubs(status="completed", trigger_ok=True):
+    import types
+    jobs_mod = types.ModuleType("cron.jobs")
+    triggered = []
+    jobs_mod.resolve_job_ref = lambda ref: (
+        {"id": "job1", "name": ref} if ref == "youtube-content-pipeline" else None)
+    jobs_mod.trigger_job = lambda jid: (
+        triggered.append(jid) or {"next_run_at": "now"}) if trigger_ok else None
+    jobs_mod.update_job = lambda jid, patch: None
+    jobs_mod._triggered = triggered
+    execs_mod = types.ModuleType("cron.executions")
+    execs_mod.list_executions = lambda job_id, limit: (
+        [{"status": status, "started_at": "s", "finished_at": "f"}]
+        if status else [])
+    return jobs_mod, execs_mod
+
+
+def test_pipeline_run_triggers_job(conn, tmp_home, monkeypatch):
+    jobs_mod, execs_mod = _cron_stubs(status="completed")
+    api = _load_plugin_api(monkeypatch, jobs_mod, execs_mod)
+    result = api.post_pipeline_run()
+    assert result["ok"] is True
+    assert jobs_mod._triggered == ["job1"]
+
+
+def test_pipeline_run_skips_when_already_running(conn, tmp_home, monkeypatch):
+    jobs_mod, execs_mod = _cron_stubs(status="running")
+    api = _load_plugin_api(monkeypatch, jobs_mod, execs_mod)
+    result = api.post_pipeline_run()
+    assert result.get("alreadyRunning") is True
+    assert jobs_mod._triggered == []
+
+
+def test_pipeline_state_shape(conn, tmp_home, monkeypatch):
+    jobs_mod, execs_mod = _cron_stubs(status="running")
+    api = _load_plugin_api(monkeypatch, jobs_mod, execs_mod)
+    state = api.get_pipeline_state()
+    assert state["available"] is True
+    assert state["running"] is True
+    jobs_mod.resolve_job_ref = lambda ref: None
+    state = api.get_pipeline_state()
+    assert state == {"available": False, "running": False}
