@@ -589,3 +589,12 @@
 }
 .yti-modal textarea { min-height: 110px; resize: vertical; }
 .yti-modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+
+/* ---- artifacts head actions: keep buttons on one row ---- */
+.yti-artifacts-head .yti-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+}
